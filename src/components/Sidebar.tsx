@@ -9,6 +9,7 @@ import {
   Settings, Menu, X, Shield, User, LogOut
 } from 'lucide-react';
 import { Usuario } from '../types';
+import itamLogo from '../assets/itam-logo.png';
 
 interface SidebarProps {
   currentTab: string;
@@ -59,10 +60,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="md:hidden bg-brand-dark text-white h-16 px-4 flex items-center justify-between sticky top-0 z-30 shadow-md">
         <div className="flex items-center gap-2">
           {/* Visual logo */}
-          <div className="w-8 h-8 rounded-lg bg-brand-light flex items-center justify-center font-bold text-sm tracking-tighter text-white border border-blue-400">
-            ⚡
+          <div className="w-10 h-8 rounded-lg bg-white flex items-center justify-center border border-brand-light/40 overflow-hidden p-0.5">
+            <img src={itamLogo} alt="ITAM" className="w-full h-full object-contain" />
           </div>
-          <span className="font-bold text-sm font-sans tracking-tight">WEG Garantias</span>
+          <span className="font-bold text-sm font-sans tracking-tight">Sistema de Garantia - ITAM</span>
         </div>
         <button 
           onClick={toggleSidebar}
@@ -90,12 +91,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div>
           <div className="h-16 px-6 border-b border-brand-light/20 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded bg-brand-light flex items-center justify-center font-extrabold text-base tracking-tighter text-white shadow-sm">
-                ⚡
+              <div className="w-11 h-9 rounded bg-white flex items-center justify-center shadow-sm border border-brand-light/40 overflow-hidden p-0.5 shrink-0">
+                <img src={itamLogo} alt="ITAM" className="w-full h-full object-contain" />
               </div>
               <div className="flex flex-col">
-                <span className="font-bold text-xs leading-tight text-white tracking-tight uppercase font-sans">Transformer Care</span>
-                <span className="text-[8px] text-blue-200/65 font-mono tracking-wider font-semibold uppercase">SGG WEG</span>
+                <span className="font-bold text-[11px] leading-tight text-white tracking-tight uppercase font-sans">Sistema de Garantia - ITAM</span>
               </div>
             </div>
             {/* Close button inside mobile sidebar */}
@@ -124,11 +124,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     w-full flex items-center gap-3 px-6 py-3.5 text-sm font-medium transition-all duration-150 relative group text-left
                     ${isActive 
                       ? 'bg-brand-light text-white font-semibold border-r-4 border-white' 
-                      : 'text-blue-100 hover:bg-brand-light/10 hover:text-white'
+                      : 'text-green-100 hover:bg-brand-light/10 hover:text-white'
                     }
                   `}
                 >
-                  <IconComponent className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-105 ${isActive ? 'text-white' : 'text-blue-200/60 group-hover:text-white'}`} />
+                  <IconComponent className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-105 ${isActive ? 'text-white' : 'text-green-200/60 group-hover:text-white'}`} />
                   <span>{item.label}</span>
                 </button>
               );

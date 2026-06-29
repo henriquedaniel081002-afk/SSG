@@ -91,7 +91,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     clientMap[label] = (clientMap[label] || 0) + 1;
   });
 
-  const COLORS = ['#0F3D6E', '#1E88E5', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6'];
+  const COLORS = ['#007f3d', '#10b981', '#ffffff', '#062d1b', '#22c55e', '#0f172a'];
   const chartDataCliente = Object.entries(clientMap).map(([name, value]) => ({
     name,
     value
@@ -121,7 +121,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       case StatusGarantia.RECEBIDO:
         return 'bg-slate-100 text-slate-700 border-slate-200';
       case StatusGarantia.EM_ANALISE:
-        return 'bg-blue-50 text-blue-700 border-blue-200';
+        return 'bg-green-950/60 text-green-400 border-green-700/60';
       case StatusGarantia.AGUARDANDO_PECAS:
         return 'bg-indigo-50 text-indigo-700 border-indigo-200';
       case StatusGarantia.EM_REPARO:
@@ -148,7 +148,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div className="flex items-center gap-2">
           <button 
             onClick={() => onNavigateToTab('cadastro')}
-            className="px-4 py-2 bg-brand-light text-white text-xs font-bold rounded-xl hover:bg-blue-600 transition-all flex items-center gap-2 shadow-md shadow-brand-light/10"
+            className="px-4 py-2 bg-brand-light text-white text-xs font-bold rounded-xl hover:bg-green-700 transition-all flex items-center gap-2 shadow-md shadow-brand-light/10"
           >
             <ClipboardList className="w-4 h-4" /> Nova Garantia
           </button>
@@ -170,7 +170,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <div className="p-1.5 bg-slate-50 rounded-lg text-slate-500"><ClipboardList className="w-4 h-4" /></div>
           </div>
           <div className="mt-3">
-            <h3 className="text-2xl font-extrabold text-[#0F3D6E] font-sans leading-none">{totalGarantias}</h3>
+            <h3 className="text-2xl font-extrabold text-brand-light font-sans leading-none">{totalGarantias}</h3>
             <span className="text-[10px] text-slate-400 font-semibold block mt-1">Garantias</span>
           </div>
         </div>
@@ -200,14 +200,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* Em Análise */}
-        <div className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm flex flex-col justify-between border-l-4 border-blue-400 transition-all">
+        <div className="bg-white border border-slate-100 p-4 rounded-xl shadow-sm flex flex-col justify-between border-l-4 border-green-500/60 transition-all">
           <div className="flex justify-between items-start">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Em Análise</span>
-            <div className="p-1.5 bg-blue-50 rounded-lg text-blue-600"><Clock className="w-4 h-4" /></div>
+            <div className="p-1.5 bg-green-950/60 rounded-lg text-green-500"><Clock className="w-4 h-4" /></div>
           </div>
           <div className="mt-3">
-            <h3 className="text-2xl font-extrabold text-blue-500 font-sans leading-none">{emAnálise}</h3>
-            <span className="text-[10px] text-blue-500 font-semibold block mt-1">Inspeção técnica</span>
+            <h3 className="text-2xl font-extrabold text-green-500 font-sans leading-none">{emAnálise}</h3>
+            <span className="text-[10px] text-green-500 font-semibold block mt-1">Inspeção técnica</span>
           </div>
         </div>
 
@@ -249,11 +249,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartDataMes} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} tickLine={false} />
-                <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#1F3A2A" />
+                <XAxis dataKey="name" stroke="#8EA394" fontSize={10} tickLine={false} />
+                <YAxis stroke="#8EA394" fontSize={10} tickLine={false} />
                 <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
-                <Bar dataKey="Garantias Registradas" fill="#0F3D6E" radius={[4, 4, 0, 0]} barSize={36} />
+                <Bar dataKey="Garantias Registradas" fill="#007f3d" radius={[4, 4, 0, 0]} barSize={36} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -318,11 +318,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   data={chartDataModelo}
                   margin={{ top: 5, right: 10, left: -20, bottom: 5 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                  <XAxis type="number" stroke="#94a3b8" fontSize={10} tickLine={false} />
-                  <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={9} tickLine={false} width={80} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1F3A2A" horizontal={false} />
+                  <XAxis type="number" stroke="#8EA394" fontSize={10} tickLine={false} />
+                  <YAxis dataKey="name" type="category" stroke="#8EA394" fontSize={9} tickLine={false} width={80} />
                   <Tooltip contentStyle={{ fontSize: '11px', borderRadius: '8px' }} />
-                  <Bar dataKey="Quantidade" fill="#1E88E5" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="Quantidade" fill="#10b981" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -340,7 +340,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </h3>
               <button 
                 onClick={() => onNavigateToTab('relatorios')}
-                className="text-xs text-brand-light hover:text-blue-700 font-bold flex items-center gap-1 hover:underline transition-all"
+                className="text-xs text-brand-light hover:text-green-400 font-bold flex items-center gap-1 hover:underline transition-all"
               >
                 Ver Relatório Completo <ArrowRight className="w-3.5 h-3.5" />
               </button>

@@ -140,10 +140,10 @@ export const RegistroFotografico: React.FC<RegistroFotograficoProps> = ({
       const ctx = canvas.getContext('2d');
       if (ctx) {
         // Draw industrial pattern
-        ctx.fillStyle = '#0F3D6E';
+        ctx.fillStyle = '#020403';
         ctx.fillRect(0, 0, 640, 480);
         
-        ctx.fillStyle = '#1E88E5';
+        ctx.fillStyle = '#007F3D';
         ctx.fillRect(20, 20, 600, 440);
 
         ctx.fillStyle = '#ffffff';
@@ -323,7 +323,7 @@ export const RegistroFotografico: React.FC<RegistroFotograficoProps> = ({
             </div>
             <div className="col-span-2 md:col-span-1">
               <span className="text-[10px] text-slate-400 block mb-0.5">Status Atual</span>
-              <span className="inline-block bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">
+              <span className="inline-block bg-green-900/50 text-green-300 px-2 py-0.5 rounded text-[10px] font-bold">
                 {activeGarantia.status}
               </span>
             </div>
@@ -623,7 +623,7 @@ export const RegistroFotografico: React.FC<RegistroFotograficoProps> = ({
               <button 
                 type="button"
                 onClick={handleCapture}
-                className="px-5 py-2.5 bg-brand-light hover:bg-blue-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-light/20"
+                className="px-5 py-2.5 bg-brand-light hover:bg-green-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-md shadow-brand-light/20"
               >
                 <Camera className="w-4 h-4" /> {hasCameraError ? 'Simular Captura' : 'Bater Foto'}
               </button>

@@ -252,7 +252,7 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
   const getStatusColor = (status: StatusGarantia) => {
     switch (status) {
       case StatusGarantia.RECEBIDO: return 'bg-slate-100 text-slate-700 border-slate-200';
-      case StatusGarantia.EM_ANALISE: return 'bg-blue-50 text-blue-700 border-blue-200';
+      case StatusGarantia.EM_ANALISE: return 'bg-green-950/60 text-green-400 border-green-700/60';
       case StatusGarantia.AGUARDANDO_PECAS: return 'bg-indigo-50 text-indigo-700 border-indigo-200';
       case StatusGarantia.EM_REPARO: return 'bg-amber-50 text-amber-700 border-amber-200';
       case StatusGarantia.TESTE_FINAL: return 'bg-purple-50 text-purple-700 border-purple-200';
@@ -273,7 +273,7 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
         {!isQueryOnly ? (
           <button
             onClick={handleOpenCreate}
-            className="px-4 py-2 bg-brand-light text-white text-xs font-bold rounded-xl hover:bg-blue-600 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-brand-light/15"
+            className="px-4 py-2 bg-brand-light text-white text-xs font-bold rounded-xl hover:bg-green-700 transition-all flex items-center justify-center gap-1.5 shadow-md shadow-brand-light/15"
           >
             <Plus className="w-4 h-4" /> Nova Garantia
           </button>
@@ -810,7 +810,7 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
                       <button
                         type="button"
                         onClick={() => setObservacoesGerais("Substituição de juntas de vedação desgastadas por vedações novas. Estanqueidade validada.")}
-                        className="bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded text-[8px] font-bold hover:bg-blue-100"
+                        className="bg-green-950/60 text-green-400 border border-green-700/60 px-1.5 py-0.5 rounded text-[8px] font-bold hover:bg-green-900/50"
                       >
                         ✔️ Junta Vedada
                       </button>
@@ -837,7 +837,7 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-brand-light hover:bg-blue-600 text-white font-bold rounded-lg shadow-sm transition-colors"
+                  className="px-4 py-2 bg-brand-light hover:bg-green-700 text-white font-bold rounded-lg shadow-sm transition-colors"
                 >
                   Salvar Registro
                 </button>

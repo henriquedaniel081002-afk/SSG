@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Lock, Mail, UserPlus, User, Eye, EyeOff, ShieldCheck, Clock } from 'lucide-react';
 import { loginComEmail, solicitarCadastro } from '../services/api';
 import { Usuario } from '../types';
+import itamLogo from '../assets/itam-logo.png';
 
 interface LoginProps {
   onLoginSuccess: (user: Usuario) => void;
@@ -77,9 +78,9 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
         <div className="bg-brand-dark text-white p-8 lg:p-10 flex flex-col justify-between gap-10">
           <div>
-            <div className="w-12 h-12 rounded-xl bg-brand-light flex items-center justify-center text-2xl font-black mb-6">⚡</div>
-            <h1 className="text-3xl font-black tracking-tight mb-3">SGG Garantias</h1>
-            <p className="text-blue-100 text-sm leading-relaxed max-w-md">
+            <div className="w-20 h-14 rounded-xl bg-white flex items-center justify-center mb-6 border border-brand-light/40 overflow-hidden p-1"><img src={itamLogo} alt="ITAM" className="w-full h-full object-contain" /></div>
+            <h1 className="text-3xl font-black tracking-tight mb-3">Sistema de Garantia - ITAM</h1>
+            <p className="text-green-100 text-sm leading-relaxed max-w-md">
               Acesso controlado ao sistema de gestão de garantias de transformadores. Novos cadastros ficam pendentes até aprovação administrativa.
             </p>
           </div>
@@ -181,7 +182,7 @@ export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-brand-light hover:bg-blue-600 disabled:opacity-60 text-white text-sm font-black transition-colors flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-brand-light hover:bg-green-700 disabled:opacity-60 text-white text-sm font-black transition-colors flex items-center justify-center gap-2"
             >
               {mode === 'login' ? <Lock className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
               {loading ? 'Processando...' : mode === 'login' ? 'Entrar' : 'Enviar cadastro'}

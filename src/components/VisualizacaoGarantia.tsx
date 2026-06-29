@@ -51,7 +51,7 @@ export const VisualizacaoGarantia: React.FC<VisualizacaoGarantiaProps> = ({
   // Determine stage active index
   const stages = [
     { name: 'Recebido', status: StatusGarantia.RECEBIDO, color: 'bg-slate-500 border-slate-600' },
-    { name: 'Em Análise', status: StatusGarantia.EM_ANALISE, color: 'bg-blue-500 border-blue-600' },
+    { name: 'Em Análise', status: StatusGarantia.EM_ANALISE, color: 'bg-green-500 border-green-600' },
     { name: 'Em Reparo', status: StatusGarantia.EM_REPARO, color: 'bg-amber-500 border-amber-600' },
     { name: 'Teste Final', status: StatusGarantia.TESTE_FINAL, color: 'bg-purple-500 border-purple-600' },
     { name: 'Concluído', status: StatusGarantia.CONCLUIDO, color: 'bg-emerald-500 border-emerald-600' }
@@ -122,7 +122,7 @@ export const VisualizacaoGarantia: React.FC<VisualizacaoGarantiaProps> = ({
           {onEdit && (
             <button 
               onClick={onEdit}
-              className="px-3 py-1.5 bg-brand-light text-white text-xs font-semibold rounded-lg hover:bg-blue-600 transition-colors shadow-sm"
+              className="px-3 py-1.5 bg-brand-light text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-sm"
             >
               Editar Registro
             </button>
@@ -157,7 +157,7 @@ export const VisualizacaoGarantia: React.FC<VisualizacaoGarantiaProps> = ({
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 z-10 transition-all shadow-sm ${
                     isCompleted 
                       ? isCurrent 
-                        ? 'bg-brand-light border-brand-light text-white ring-4 ring-blue-100' 
+                        ? 'bg-brand-light border-brand-light text-white ring-4 ring-green-900/60' 
                         : 'bg-brand-dark border-brand-dark text-white'
                       : 'bg-white border-slate-300 text-slate-400'
                   }`}>

@@ -207,7 +207,7 @@ export default function App() {
           </div>
           <button
             onClick={() => loadStateFromApi()}
-            className="px-4 py-2 bg-brand-light text-white text-xs font-bold rounded-lg hover:bg-blue-600"
+            className="px-4 py-2 bg-brand-light text-white text-xs font-bold rounded-lg hover:bg-green-700"
           >
             Tentar novamente
           </button>
@@ -237,11 +237,7 @@ export default function App() {
         {/* Top bar header */}
         <header className="hidden md:flex h-16 bg-white border-b border-slate-200 px-8 items-center justify-between sticky top-0 z-20 shadow-xs">
           <div className="flex items-center gap-3">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Status do Hub</span>
-            <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Supabase Online</span>
-            </div>
+            <span className="text-[10px] font-bold text-brand-light uppercase tracking-widest font-mono">Sistema de Garantia - ITAM</span>
           </div>
 
           <div className="flex items-center gap-6">
@@ -285,9 +281,9 @@ export default function App() {
 
         {/* Footer info */}
         <footer className="py-6 px-8 border-t border-slate-200 text-center text-[10px] text-slate-400 bg-white font-medium flex flex-col sm:flex-row justify-between gap-2 mt-auto print:hidden">
-          <span>SGG • Sistema Integrado de Gestão de Garantias de Transformadores Industriais</span>
+          <span>Sistema de Garantia - ITAM • Gestão de Garantias de Transformadores Industriais</span>
           <span className="flex items-center justify-center gap-1">
-            WEG Equipamentos Elétricos S.A. <ArrowUpRight className="w-3 h-3 text-slate-300" />
+            ITAM Transformadores <ArrowUpRight className="w-3 h-3 text-slate-300" />
           </span>
         </footer>
 

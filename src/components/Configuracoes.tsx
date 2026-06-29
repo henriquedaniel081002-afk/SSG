@@ -184,7 +184,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ db, onUpdateState,
                 ) : usr.id !== currentUser?.id ? (
                   <div className="flex justify-end gap-1.5 flex-wrap">
                     <button onClick={() => handleToggleUserStatus(usr.id)} className={`px-2 py-1 rounded text-[10px] font-bold border ${usr.ativo ? 'bg-rose-50 text-rose-700 border-rose-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>{usr.ativo ? 'Suspender' : 'Ativar'}</button>
-                    <button onClick={() => handleToggleAdmin(usr)} className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded text-[10px] font-bold">{usr.funcao === 'admin' ? 'Remover ADM' : 'Tornar ADM'}</button>
+                    <button onClick={() => handleToggleAdmin(usr)} className="px-2 py-1 bg-green-950/60 text-green-400 border border-green-700/60 rounded text-[10px] font-bold">{usr.funcao === 'admin' ? 'Remover ADM' : 'Tornar ADM'}</button>
                     {usr.funcao !== 'admin' && <button onClick={() => handleDeleteUser(usr.id, usr.nome)} className="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-bold flex items-center gap-0.5"><Trash2 className="w-3 h-3" /> Excluir</button>}
                   </div>
                 ) : <span className="text-[10px] text-slate-300 italic">Usuário atual</span>}
@@ -233,7 +233,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ db, onUpdateState,
                   <option value="admin">Administrador</option>
                 </select>
               </div>
-              <button type="submit" className="px-4 py-1.5 bg-brand-light text-white text-xs font-bold rounded-lg hover:bg-blue-600 transition-colors shadow-sm flex items-center gap-1"><Save className="w-4 h-4" /> Registrar Usuário</button>
+              <button type="submit" className="px-4 py-1.5 bg-brand-light text-white text-xs font-bold rounded-lg hover:bg-green-700 transition-colors shadow-sm flex items-center gap-1"><Save className="w-4 h-4" /> Registrar Usuário</button>
             </form>
           </div>
 
@@ -241,7 +241,7 @@ export const Configuracoes: React.FC<ConfiguracoesProps> = ({ db, onUpdateState,
             <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2"><Shield className="w-4.5 h-4.5 text-brand-light" /> Regra de Acesso</h3>
             <div className="space-y-3 text-[11px] text-slate-600 leading-relaxed">
               <div className="border rounded-xl p-4 bg-emerald-50 border-emerald-200"><strong>Usuário comum:</strong> acessa o sistema de garantias normalmente, mas não gerencia usuários.</div>
-              <div className="border rounded-xl p-4 bg-blue-50 border-blue-200"><strong>Administrador:</strong> acessa o sistema e também aprova, recusa e promove usuários.</div>
+              <div className="border rounded-xl p-4 bg-green-950/60 border-green-700/60"><strong>Administrador:</strong> acessa o sistema e também aprova, recusa e promove usuários.</div>
               <div className="border rounded-xl p-4 bg-amber-50 border-amber-200"><strong>Pendente:</strong> usuário se cadastrou, mas ainda não entra no sistema.</div>
               <div className="border rounded-xl p-4 bg-rose-50 border-rose-200"><strong>Recusado:</strong> acesso negado. O usuário não consegue entrar.</div>
             </div>

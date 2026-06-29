@@ -127,7 +127,7 @@ export const Relatorios: React.FC<RelatoriosProps> = ({
       case StatusGarantia.RECEBIDO:
         return 'bg-slate-100 text-slate-700 border-slate-200';
       case StatusGarantia.EM_ANALISE:
-        return 'bg-blue-50 text-blue-700 border-blue-200';
+        return 'bg-green-950/60 text-green-400 border-green-700/60';
       case StatusGarantia.AGUARDANDO_PECAS:
         return 'bg-indigo-50 text-indigo-700 border-indigo-200';
       case StatusGarantia.EM_REPARO:
