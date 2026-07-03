@@ -494,7 +494,19 @@ export async function excluirUsuario(id: string | number) {
   if (error) raise(error, 'Erro ao excluir usuário. Verifique se ele está vinculado a garantias/históricos.');
 }
 
-function dataUrlToBlob(dataUrl: string) {
+const FOTO_MAX_LADO_PX = 1280;
+const FOTO_MIN_LADO_PX = 640;
+const FOTO_MAX_BYTES = 500 * 1024;
+const FOTO_QUALIDADES = [0.78, 0.7, 0.62, 0.54, 0.46];
+const FOTO_LADOS_MAXIMOS = [1280, 1024, 800, 640];
+
+type FotoProcessada = {
+  blob: Blob;
+  mimeType: string;
+  extension: string;
+};
+
+function dataUrlToBlob(dataUrl: string): FotoProcessada {
   const [metadata, base64] = dataUrl.split(',');
   const mimeType = metadata.match(/data:(.*?);base64/)?.[1] || 'image/jpeg';
   const binary = atob(base64 || '');
@@ -504,15 +516,117 @@ function dataUrlToBlob(dataUrl: string) {
     bytes[index] = binary.charCodeAt(index);
   }
 
+  return buildFotoProcessada(new Blob([bytes], { type: mimeType }), mimeType);
+}
+
+function buildFotoProcessada(blob: Blob, mimeType: string): FotoProcessada {
+  const normalizedMimeType = mimeType || blob.type || 'image/jpeg';
+  const extension = normalizedMimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+
   return {
-    blob: new Blob([bytes], { type: mimeType }),
-    mimeType,
-    extension: mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg',
+    blob,
+    mimeType: normalizedMimeType,
+    extension,
   };
 }
 
+function carregarImagem(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Não foi possível carregar a imagem para otimização.'));
+    image.src = dataUrl;
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Não foi possível comprimir a foto.'));
+        return;
+      }
+      resolve(blob);
+    }, mimeType, quality);
+  });
+}
+
+function calcularDimensoesFoto(width: number, height: number, ladoMaximo: number) {
+  const maiorLado = Math.max(width, height);
+
+  if (maiorLado <= ladoMaximo) {
+    return { width, height };
+  }
+
+  const escala = ladoMaximo / maiorLado;
+  return {
+    width: Math.max(1, Math.round(width * escala)),
+    height: Math.max(1, Math.round(height * escala)),
+  };
+}
+
+async function otimizarFotoDataUrl(dataUrl: string): Promise<FotoProcessada> {
+  try {
+    const image = await carregarImagem(dataUrl);
+    const originalWidth = image.naturalWidth || image.width;
+    const originalHeight = image.naturalHeight || image.height;
+
+    if (!originalWidth || !originalHeight) {
+      return dataUrlToBlob(dataUrl);
+    }
+
+    let melhorFoto: FotoProcessada | null = null;
+
+    for (const ladoMaximo of FOTO_LADOS_MAXIMOS) {
+      const limiteLado = Math.max(FOTO_MIN_LADO_PX, Math.min(FOTO_MAX_LADO_PX, ladoMaximo));
+      const { width, height } = calcularDimensoesFoto(originalWidth, originalHeight, limiteLado);
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) continue;
+
+      ctx.drawImage(image, 0, 0, width, height);
+
+      for (const qualidade of FOTO_QUALIDADES) {
+        const blob = await canvasToBlob(canvas, 'image/webp', qualidade);
+        const mimeType = blob.type || 'image/webp';
+        const fotoProcessada = buildFotoProcessada(blob, mimeType);
+
+        if (!melhorFoto || fotoProcessada.blob.size < melhorFoto.blob.size) {
+          melhorFoto = fotoProcessada;
+        }
+
+        if (fotoProcessada.blob.size <= FOTO_MAX_BYTES) {
+          return fotoProcessada;
+        }
+      }
+    }
+
+    if (melhorFoto) {
+      if (melhorFoto.blob.size > FOTO_MAX_BYTES) {
+        throw new Error('A foto ficou acima de 500 KB mesmo após compressão. Tente enviar uma imagem com menos detalhes ou tirar a foto de mais longe.');
+      }
+      return melhorFoto;
+    }
+
+    return dataUrlToBlob(dataUrl);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('500 KB')) {
+      throw error;
+    }
+
+    const original = dataUrlToBlob(dataUrl);
+    if (original.blob.size > FOTO_MAX_BYTES) {
+      throw new Error('A foto ultrapassa 500 KB e não pôde ser comprimida automaticamente. Tente enviar uma imagem menor.');
+    }
+    return original;
+  }
+}
+
 async function uploadFotoToStorage(garantiaId: string, tipo: 'antes' | 'depois', dataUrl: string) {
-  const { blob, mimeType, extension } = dataUrlToBlob(dataUrl);
+  const { blob, mimeType, extension } = await otimizarFotoDataUrl(dataUrl);
   const safeGarantiaId = garantiaId.replace(/[^a-zA-Z0-9-_]/g, '_');
   const path = `${safeGarantiaId}/${tipo}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
 
