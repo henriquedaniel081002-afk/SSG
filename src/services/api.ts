@@ -85,8 +85,81 @@ const mapFoto = (row: any): Foto => ({
 });
 
 function raise(error: any, fallback: string): never {
+  const errorText = `${error?.message || ''} ${error?.details || ''} ${error?.hint || ''}`.toLowerCase();
+
+  if (error?.code === '23505') {
+    if (errorText.includes('clientes_nome_unique')) {
+      throw new Error('Já existe um cliente cadastrado com esse nome. Selecione o cliente existente.');
+    }
+
+    if (errorText.includes('equipamentos_numero_serie_unique')) {
+      throw new Error('Já existe um equipamento cadastrado com esse número de série.');
+    }
+
+    if (errorText.includes('garantias_equipamento_id_unique')) {
+      throw new Error('Este equipamento já possui uma garantia cadastrada. Cada equipamento pode ter somente uma garantia.');
+    }
+
+    if (errorText.includes('garantias_codigo_garantia_key')) {
+      throw new Error('Já existe uma garantia com esse código. Tente cadastrar novamente.');
+    }
+  }
+
   if (error?.message) throw new Error(error.message);
   throw new Error(fallback);
+}
+
+const normalizeUniqueText = (value: unknown) => String(value || '').trim().toLocaleUpperCase('pt-BR');
+
+async function ensureClienteNomeDisponivel(nome: string) {
+  const nomeNormalizado = normalizeUniqueText(nome);
+  const { data, error } = await supabase.from('clientes').select('nome');
+
+  if (error) raise(error, 'Erro ao verificar o nome do cliente');
+
+  if ((data || []).some((cliente: any) => normalizeUniqueText(cliente.nome) === nomeNormalizado)) {
+    throw new Error('Já existe um cliente cadastrado com esse nome. Selecione o cliente existente.');
+  }
+}
+
+async function ensureNumeroSerieDisponivel(numeroSerie: string) {
+  const serieNormalizada = normalizeUniqueText(numeroSerie);
+  const { data, error } = await supabase.from('equipamentos').select('numero_serie');
+
+  if (error) raise(error, 'Erro ao verificar o número de série');
+
+  if ((data || []).some((equipamento: any) => normalizeUniqueText(equipamento.numero_serie) === serieNormalizada)) {
+    throw new Error('Já existe um equipamento cadastrado com esse número de série.');
+  }
+}
+
+async function ensureEquipamentoSemOutraGarantia(
+  equipamentoId: string | number,
+  garantiaInternalId?: string | number
+) {
+  const equipamentoIdNormalizado = normalizeNumber(equipamentoId);
+  if (equipamentoIdNormalizado === null) {
+    throw new Error('Selecione um equipamento válido.');
+  }
+
+  let query = supabase
+    .from('garantias')
+    .select('codigo_garantia')
+    .eq('equipamento_id', equipamentoIdNormalizado);
+
+  const garantiaIdNormalizado = normalizeNumber(garantiaInternalId);
+  if (garantiaIdNormalizado !== null) {
+    query = query.neq('id', garantiaIdNormalizado);
+  }
+
+  const { data, error } = await query.limit(1);
+  if (error) raise(error, 'Erro ao verificar garantias do equipamento');
+
+  if (data && data.length > 0) {
+    throw new Error(
+      `Este equipamento já possui a garantia ${data[0].codigo_garantia}. Cada equipamento pode ter somente uma garantia.`
+    );
+  }
 }
 
 async function getStatusIdByName(nome: string) {
@@ -320,10 +393,13 @@ export async function recusarUsuario(id: string | number, motivo?: string) {
 export async function criarCliente(data: any) {
   assertSupabaseConfigured();
 
+  const nome = String(data.nome || '').trim();
+  await ensureClienteNomeDisponivel(nome);
+
   const { data: inserted, error } = await supabase
     .from('clientes')
     .insert({
-      nome: data.nome,
+      nome,
       contato: data.contato || null,
       telefone: data.telefone || null,
       email: data.email || null,
@@ -340,10 +416,13 @@ export async function criarCliente(data: any) {
 export async function criarEquipamento(data: any) {
   assertSupabaseConfigured();
 
+  const numeroSerie = String(data.numeroSerie || '').trim().toUpperCase();
+  await ensureNumeroSerieDisponivel(numeroSerie);
+
   const { data: inserted, error } = await supabase
     .from('equipamentos')
     .insert({
-      numero_serie: String(data.numeroSerie || '').trim().toUpperCase(),
+      numero_serie: numeroSerie,
       modelo: data.modelo,
       potencia: data.potencia || null,
       tensao: data.tensao || null,
@@ -359,6 +438,8 @@ export async function criarEquipamento(data: any) {
 
 export async function criarGarantia(data: any) {
   assertSupabaseConfigured();
+
+  await ensureEquipamentoSemOutraGarantia(data.equipamentoId);
 
   const codigo = await gerarCodigoGarantia(data.dataEntrada);
   const statusId = await getStatusIdByName(data.status || StatusGarantia.RECEBIDO);
@@ -390,6 +471,7 @@ export async function atualizarGarantia(codigo: string, data: any) {
   assertSupabaseConfigured();
 
   const garantia = await getGarantiaRowByCodigo(codigo);
+  await ensureEquipamentoSemOutraGarantia(data.equipamentoId, garantia.id);
   const statusId = await getStatusIdByName(data.status || StatusGarantia.RECEBIDO);
   const originalStatus = garantia.status_garantia?.nome;
   const statusFinalizado = data.status === StatusGarantia.CONCLUIDO || data.status === StatusGarantia.ENCERRADO;

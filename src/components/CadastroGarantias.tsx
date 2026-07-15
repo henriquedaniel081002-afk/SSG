@@ -18,6 +18,8 @@ interface CadastroGarantiasProps {
   onSelectGarantia: (garantia: Garantia) => void;
 }
 
+const normalizeUniqueText = (value: string) => value.trim().toLocaleUpperCase('pt-BR');
+
 export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
   db,
   onUpdateState,
@@ -66,6 +68,16 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
   const [newEquipVenda, setNewEquipVenda] = useState('2025-02-15');
 
   const isQueryOnly = false;
+
+  const equipamentosComOutraGarantia = new Set(
+    garantias
+      .filter((garantia) => garantia.id !== editingGarantiaId)
+      .map((garantia) => garantia.equipamentoId)
+  );
+
+  const equipamentosDisponiveis = equipamentos.filter(
+    (equipamento) => !equipamentosComOutraGarantia.has(equipamento.id)
+  );
 
   // --- FILTERED WARRANTIES ---
   const filteredGarantias = garantias.filter(g => {
@@ -161,17 +173,73 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
     if (isQueryOnly) return;
 
     try {
-      let finalClienteId = selectedClienteId;
-      let finalEquipamentoId = selectedEquipamentoId;
+      const nomeClienteNormalizado = newClientNome.trim();
+      const serieEquipamentoNormalizada = newEquipSerie.trim().toUpperCase();
+      const modeloEquipamentoNormalizado = newEquipModelo.trim();
+      const descricaoNormalizada = descricaoReclamacao.trim();
 
       if (addNewClientMode) {
-        if (!newClientNome) {
+        if (!nomeClienteNormalizado) {
           alert('Nome do Cliente é obrigatório.');
           return;
         }
 
+        const clienteDuplicado = clientes.some(
+          (cliente) => normalizeUniqueText(cliente.nome) === normalizeUniqueText(nomeClienteNormalizado)
+        );
+
+        if (clienteDuplicado) {
+          alert(`O cliente "${nomeClienteNormalizado}" já está cadastrado. Selecione o cliente existente.`);
+          return;
+        }
+      } else if (!selectedClienteId) {
+        alert('Selecione ou cadastre um cliente.');
+        return;
+      }
+
+      if (addNewEquipMode) {
+        if (!serieEquipamentoNormalizada || !modeloEquipamentoNormalizado) {
+          alert('Número de Série e Modelo são obrigatórios.');
+          return;
+        }
+
+        if (equipamentos.some(
+          (equipamento) => normalizeUniqueText(equipamento.numeroSerie) === normalizeUniqueText(serieEquipamentoNormalizada)
+        )) {
+          alert(`O número de série "${serieEquipamentoNormalizada}" já está cadastrado em outro transformador.`);
+          return;
+        }
+      } else {
+        if (!selectedEquipamentoId) {
+          alert('Selecione ou cadastre um transformador.');
+          return;
+        }
+
+        const garantiaExistente = garantias.find(
+          (garantia) =>
+            garantia.equipamentoId === selectedEquipamentoId &&
+            garantia.id !== editingGarantiaId
+        );
+
+        if (garantiaExistente) {
+          alert(
+            `Este equipamento já possui a garantia ${garantiaExistente.id}. Cada equipamento pode ter somente uma garantia.`
+          );
+          return;
+        }
+      }
+
+      if (!descricaoNormalizada) {
+        alert('Por favor, informe a descrição da reclamação.');
+        return;
+      }
+
+      let finalClienteId = selectedClienteId;
+      let finalEquipamentoId = selectedEquipamentoId;
+
+      if (addNewClientMode) {
         const novoCliente = await criarCliente({
-          nome: newClientNome,
+          nome: nomeClienteNormalizado,
           contato: newClientContato,
           telefone: newClientTelefone,
           email: newClientEmail,
@@ -183,19 +251,9 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
       }
 
       if (addNewEquipMode) {
-        if (!newEquipSerie || !newEquipModelo) {
-          alert('Número de Série e Modelo são obrigatórios.');
-          return;
-        }
-
-        if (equipamentos.some(eq => eq.numeroSerie.trim().toUpperCase() === newEquipSerie.trim().toUpperCase())) {
-          alert(`O número de série "${newEquipSerie}" já está cadastrado em outro transformador.`);
-          return;
-        }
-
         const novoEquipamento = await criarEquipamento({
-          numeroSerie: newEquipSerie.trim().toUpperCase(),
-          modelo: newEquipModelo,
+          numeroSerie: serieEquipamentoNormalizada,
+          modelo: modeloEquipamentoNormalizado,
           potencia: newEquipPotencia,
           tensao: newEquipTensao,
           dataFabricacao: newEquipFabricacao,
@@ -205,26 +263,11 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
         finalEquipamentoId = novoEquipamento.id;
       }
 
-      if (!finalClienteId) {
-        alert('Selecione ou cadastre um cliente.');
-        return;
-      }
-
-      if (!finalEquipamentoId) {
-        alert('Selecione ou cadastre um transformador.');
-        return;
-      }
-
-      if (!descricaoReclamacao) {
-        alert('Por favor, informe a descrição da reclamação.');
-        return;
-      }
-
       const garantiaPayload = {
         dataEntrada,
         clienteId: finalClienteId,
         equipamentoId: finalEquipamentoId,
-        descricaoReclamacao,
+        descricaoReclamacao: descricaoNormalizada,
         responsavelId,
         status,
         observacoesGerais,
@@ -694,10 +737,13 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-light"
                     >
                       <option value="">Selecione o Transformador...</option>
-                      {equipamentos.map((eq) => (
+                      {equipamentosDisponiveis.map((eq) => (
                         <option key={eq.id} value={eq.id}>{eq.numeroSerie} - {eq.modelo.split(' (')[0]} ({eq.potencia})</option>
                       ))}
                     </select>
+                    <p className="mt-1 text-[9px] text-slate-400">
+                      São exibidos apenas equipamentos que ainda não possuem garantia cadastrada.
+                    </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 animate-in fade-in duration-150">
