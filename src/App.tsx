@@ -20,7 +20,7 @@ import { Login } from './components/Login';
 
 import { 
   Bell, HelpCircle, Shield, Wrench, Eye, Clock, 
-  MapPin, CheckCircle, Info, Menu, X, ArrowUpRight
+  MapPin, CheckCircle, Info, Menu, X, ArrowUpRight, AlertTriangle
 } from 'lucide-react';
 
 export default function App() {
@@ -38,6 +38,36 @@ export default function App() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [selectedGarantia, setSelectedGarantia] = useState<Garantia | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
+
+
+  // Substitui os alertas nativos do navegador por notificações modernas e não bloqueantes.
+  useEffect(() => {
+    const originalAlert = window.alert;
+    let timer: number | undefined;
+
+    window.alert = (message?: unknown) => {
+      const text = String(message ?? '');
+      const normalized = text.toLocaleLowerCase('pt-BR');
+      const type: 'success' | 'error' | 'warning' | 'info' =
+        normalized.includes('sucesso') || normalized.includes('aprovado') || normalized.includes('atualizada') || normalized.includes('vinculada')
+          ? 'success'
+          : normalized.includes('erro') || normalized.includes('não foi possível') || normalized.includes('já está cadastrad') || normalized.includes('já possui')
+            ? 'error'
+            : normalized.includes('obrigat') || normalized.includes('selecione') || normalized.includes('apenas administradores') || normalized.includes('desativada')
+              ? 'warning'
+              : 'info';
+
+      setNotification({ message: text, type });
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => setNotification(null), 4500);
+    };
+
+    return () => {
+      window.alert = originalAlert;
+      if (timer) window.clearTimeout(timer);
+    };
+  }, []);
 
   // Active User Synchronization
   const currentUser = db.currentUser;
@@ -288,6 +318,65 @@ export default function App() {
         </footer>
 
       </main>
+
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -18, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="fixed top-5 right-5 z-[100] w-[calc(100%-2rem)] max-w-md print:hidden"
+            role="status"
+            aria-live="polite"
+          >
+            <div className={`rounded-2xl border bg-white shadow-2xl shadow-slate-900/15 overflow-hidden ${
+              notification.type === 'success' ? 'border-emerald-200' :
+              notification.type === 'error' ? 'border-rose-200' :
+              notification.type === 'warning' ? 'border-amber-200' : 'border-sky-200'
+            }`}>
+              <div className="flex items-start gap-3 p-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                  notification.type === 'success' ? 'bg-emerald-50 text-emerald-600' :
+                  notification.type === 'error' ? 'bg-rose-50 text-rose-600' :
+                  notification.type === 'warning' ? 'bg-amber-50 text-amber-600' : 'bg-sky-50 text-sky-600'
+                }`}>
+                  {notification.type === 'success' ? <CheckCircle className="w-5 h-5" /> :
+                   notification.type === 'error' || notification.type === 'warning' ? <AlertTriangle className="w-5 h-5" /> :
+                   <Info className="w-5 h-5" />}
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <p className="text-sm font-bold text-slate-900">
+                    {notification.type === 'success' ? 'Operação concluída' :
+                     notification.type === 'error' ? 'Não foi possível concluir' :
+                     notification.type === 'warning' ? 'Atenção necessária' : 'Informação'}
+                  </p>
+                  <p className="text-xs leading-relaxed text-slate-600 mt-1">{notification.message}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setNotification(null)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                  aria-label="Fechar notificação"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <motion.div
+                key={notification.message}
+                initial={{ width: '100%' }}
+                animate={{ width: '0%' }}
+                transition={{ duration: 4.5, ease: 'linear' }}
+                className={`h-1 ${
+                  notification.type === 'success' ? 'bg-emerald-500' :
+                  notification.type === 'error' ? 'bg-rose-500' :
+                  notification.type === 'warning' ? 'bg-amber-500' : 'bg-sky-500'
+                }`}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* POPUP FULL-DETAIL DIALOG (OVERLAY WINDOW) */}
       <AnimatePresence>

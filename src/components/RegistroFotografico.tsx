@@ -6,7 +6,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Camera, Upload, Info, AlertTriangle, Hammer, CheckCircle, 
-  Trash2, Download, Maximize2, X, ChevronRight, Image as ImageIcon
+  Trash2, Download, Maximize2, X, ChevronRight, Image as ImageIcon, Search
 } from 'lucide-react';
 import { DBState, Garantia, Cliente, Equipamento, Foto, Usuario } from '../types';
 import { buscarEstadoCompleto, excluirFoto, salvarFoto } from '../services/api';
@@ -27,6 +27,7 @@ export const RegistroFotografico: React.FC<RegistroFotograficoProps> = ({
 
   // Active Warranty under edit
   const [selectedGarantiaId, setSelectedGarantiaId] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Camera state
   const [isCameraActive, setIsCameraActive] = useState(false);
@@ -49,6 +50,26 @@ export const RegistroFotografico: React.FC<RegistroFotograficoProps> = ({
   const activeGarantia = garantias.find(g => g.id === selectedGarantiaId);
   const activeCliente = activeGarantia ? clientes.find(c => c.id === activeGarantia.clienteId) : null;
   const activeEquipamento = activeGarantia ? equipamentos.find(e => e.id === activeGarantia.equipamentoId) : null;
+
+  const normalizedSearch = searchTerm.trim().toLocaleLowerCase('pt-BR');
+  const garantiasFiltradas = garantias.filter((garantia) => {
+    if (!normalizedSearch) return true;
+    const equipamento = equipamentos.find((item) => item.id === garantia.equipamentoId);
+    const cliente = clientes.find((item) => item.id === garantia.clienteId);
+    const searchable = [
+      garantia.id,
+      garantia.status,
+      equipamento?.numeroSerie,
+      equipamento?.modelo,
+      equipamento?.potencia,
+      cliente?.nome,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLocaleLowerCase('pt-BR');
+
+    return searchable.includes(normalizedSearch);
+  });
 
   // Filter existing photos for selected warranty
   const activeFotos = fotos.filter(f => f.garantiaId === selectedGarantiaId);
@@ -280,23 +301,56 @@ export const RegistroFotografico: React.FC<RegistroFotograficoProps> = ({
 
       {/* Select Active Warranty Card */}
       <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-4">
-        <div>
-          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Selecione o Chamado de Garantia ativo:</label>
-          <select
-            value={selectedGarantiaId}
-            onChange={(e) => setSelectedGarantiaId(e.target.value)}
-            className="w-full max-w-xl px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-light"
-          >
-            <option value="">Escolher chamado de garantia por O.S. ou Série...</option>
-            {garantias.map((g) => {
-              const eq = equipamentos.find(e => e.id === g.equipamentoId);
-              return (
-                <option key={g.id} value={g.id}>
-                  {g.id} — Nº Série: {eq?.numeroSerie} ({g.status})
-                </option>
-              );
-            })}
-          </select>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Buscar chamado para registro fotográfico</label>
+            <div className="relative max-w-xl">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Busque por O.S., código, série, modelo ou cliente..."
+                className="w-full pl-9 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light transition-all"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200"
+                  aria-label="Limpar busca"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <p className="mt-1.5 text-[10px] text-slate-400">{garantiasFiltradas.length} chamado(s) encontrado(s).</p>
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Selecione o chamado de garantia ativo</label>
+            <select
+              value={selectedGarantiaId}
+              onChange={(e) => setSelectedGarantiaId(e.target.value)}
+              className="w-full max-w-xl px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
+            >
+              <option value="">Escolher chamado de garantia...</option>
+              {garantiasFiltradas.map((g) => {
+                const eq = equipamentos.find(e => e.id === g.equipamentoId);
+                const cliente = clientes.find(c => c.id === g.clienteId);
+                return (
+                  <option key={g.id} value={g.id}>
+                    {g.id} — Série: {eq?.numeroSerie || 'Não informada'} — {cliente?.nome || 'Cliente não localizado'}
+                  </option>
+                );
+              })}
+            </select>
+            {normalizedSearch && garantiasFiltradas.length === 0 && (
+              <div className="mt-2 max-w-xl rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-medium text-amber-700">
+                Nenhum chamado corresponde aos termos informados. Revise a busca ou limpe o campo.
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Display connected info if selected */}
