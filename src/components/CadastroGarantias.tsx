@@ -20,6 +20,38 @@ interface CadastroGarantiasProps {
 
 const normalizeUniqueText = (value: string) => value.trim().toLocaleUpperCase('pt-BR');
 
+const POTENCIA_POR_TERCEIRA_LETRA: Record<string, string> = {
+  A: '5',
+  B: '10',
+  C: '15',
+  D: '15',
+  E: '30',
+  F: '45',
+  G: '75',
+  H: '112,5',
+  I: '150',
+  J: '225',
+  L: '300',
+  M: '500',
+  N: '750',
+  O: '1000',
+  P: '1500',
+  Q: '2000',
+  R: '2500',
+  S: '3000',
+  U: '5000',
+  W: '37,5',
+  Z: '25'
+};
+
+const obterPotenciaSugerida = (modelo: string): string | null => {
+  const modeloNormalizado = modelo.trim().toUpperCase();
+  if (modeloNormalizado.length < 3) return null;
+
+  const potencia = POTENCIA_POR_TERCEIRA_LETRA[modeloNormalizado.charAt(2)];
+  return potencia ? `${potencia} kVA` : null;
+};
+
 export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
   db,
   onUpdateState,
@@ -64,7 +96,7 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
   const [editingEquipId, setEditingEquipId] = useState<string | null>(null);
   const [newEquipSerie, setNewEquipSerie] = useState('');
   const [newEquipModelo, setNewEquipModelo] = useState('');
-  const [newEquipPotencia, setNewEquipPotencia] = useState('500 kVA');
+  const [newEquipPotencia, setNewEquipPotencia] = useState('');
   const [newEquipTensao, setNewEquipTensao] = useState('13.8 kV / 380 V');
   const [newEquipFabricacao, setNewEquipFabricacao] = useState('2025-01-01');
   const [newEquipVenda, setNewEquipVenda] = useState('2025-02-15');
@@ -127,7 +159,7 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
     setEditingEquipId(null);
     setNewEquipSerie('');
     setNewEquipModelo('');
-    setNewEquipPotencia('500 kVA');
+    setNewEquipPotencia('');
     setNewEquipTensao('13.8 kV / 380 V');
     setNewEquipFabricacao('2025-01-01');
     setNewEquipVenda('2025-02-15');
@@ -858,7 +890,15 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
                         type="text"
                         placeholder="TF-Seco-Pred (Modelo)"
                         value={newEquipModelo}
-                        onChange={(e) => setNewEquipModelo(e.target.value)}
+                        onChange={(e) => {
+                          const modelo = e.target.value.toUpperCase();
+                          setNewEquipModelo(modelo);
+
+                          const potenciaSugerida = obterPotenciaSugerida(modelo);
+                          if (potenciaSugerida) {
+                            setNewEquipPotencia(potenciaSugerida);
+                          }
+                        }}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                       />
                     </div>
@@ -866,11 +906,20 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
                       <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Potência Nominal</label>
                       <input
                         type="text"
-                        placeholder="500 kVA"
+                        placeholder="Ex.: 500 kVA"
                         value={newEquipPotencia}
                         onChange={(e) => setNewEquipPotencia(e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono"
                       />
+                      {newEquipModelo.trim().length >= 3 && (
+                        <p className={`mt-1 text-[9px] font-medium ${
+                          obterPotenciaSugerida(newEquipModelo) ? 'text-emerald-600' : 'text-amber-600'
+                        }`}>
+                          {obterPotenciaSugerida(newEquipModelo)
+                            ? `Potência sugerida pela 3ª letra do modelo: ${obterPotenciaSugerida(newEquipModelo)}. O valor pode ser alterado.`
+                            : 'Potência não identificada pelo modelo. Informe o valor manualmente.'}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Tensão Nominal (kV/V)</label>
