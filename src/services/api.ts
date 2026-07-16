@@ -111,24 +111,30 @@ function raise(error: any, fallback: string): never {
 
 const normalizeUniqueText = (value: unknown) => String(value || '').trim().toLocaleUpperCase('pt-BR');
 
-async function ensureClienteNomeDisponivel(nome: string) {
+async function ensureClienteNomeDisponivel(nome: string, clienteIdIgnorado?: string | number) {
   const nomeNormalizado = normalizeUniqueText(nome);
-  const { data, error } = await supabase.from('clientes').select('nome');
+  const { data, error } = await supabase.from('clientes').select('id, nome');
 
   if (error) raise(error, 'Erro ao verificar o nome do cliente');
 
-  if ((data || []).some((cliente: any) => normalizeUniqueText(cliente.nome) === nomeNormalizado)) {
+  const idIgnorado = normalizeNumber(clienteIdIgnorado);
+  if ((data || []).some((cliente: any) =>
+    normalizeUniqueText(cliente.nome) === nomeNormalizado && normalizeNumber(cliente.id) !== idIgnorado
+  )) {
     throw new Error('Já existe um cliente cadastrado com esse nome. Selecione o cliente existente.');
   }
 }
 
-async function ensureNumeroSerieDisponivel(numeroSerie: string) {
+async function ensureNumeroSerieDisponivel(numeroSerie: string, equipamentoIdIgnorado?: string | number) {
   const serieNormalizada = normalizeUniqueText(numeroSerie);
-  const { data, error } = await supabase.from('equipamentos').select('numero_serie');
+  const { data, error } = await supabase.from('equipamentos').select('id, numero_serie');
 
   if (error) raise(error, 'Erro ao verificar o número de série');
 
-  if ((data || []).some((equipamento: any) => normalizeUniqueText(equipamento.numero_serie) === serieNormalizada)) {
+  const idIgnorado = normalizeNumber(equipamentoIdIgnorado);
+  if ((data || []).some((equipamento: any) =>
+    normalizeUniqueText(equipamento.numero_serie) === serieNormalizada && normalizeNumber(equipamento.id) !== idIgnorado
+  )) {
     throw new Error('Já existe um equipamento cadastrado com esse número de série.');
   }
 }
@@ -413,6 +419,35 @@ export async function criarCliente(data: any) {
   return mapCliente(inserted);
 }
 
+
+export async function atualizarCliente(id: string | number, data: any) {
+  assertSupabaseConfigured();
+
+  const clienteId = normalizeNumber(id);
+  if (clienteId === null) throw new Error('Cliente inválido para edição.');
+
+  const nome = String(data.nome || '').trim();
+  if (!nome) throw new Error('O nome do cliente é obrigatório.');
+  await ensureClienteNomeDisponivel(nome, clienteId);
+
+  const { data: updated, error } = await supabase
+    .from('clientes')
+    .update({
+      nome,
+      contato: data.contato || null,
+      telefone: data.telefone || null,
+      email: data.email || null,
+      cidade: data.cidade || null,
+      estado: data.estado || null,
+    })
+    .eq('id', clienteId)
+    .select('*')
+    .single();
+
+  if (error) raise(error, 'Erro ao atualizar cliente');
+  return mapCliente(updated);
+}
+
 export async function criarEquipamento(data: any) {
   assertSupabaseConfigured();
 
@@ -434,6 +469,36 @@ export async function criarEquipamento(data: any) {
 
   if (error) raise(error, 'Erro ao cadastrar equipamento');
   return mapEquipamento(inserted);
+}
+
+
+export async function atualizarEquipamento(id: string | number, data: any) {
+  assertSupabaseConfigured();
+
+  const equipamentoId = normalizeNumber(id);
+  if (equipamentoId === null) throw new Error('Equipamento inválido para edição.');
+
+  const numeroSerie = String(data.numeroSerie || '').trim().toUpperCase();
+  const modelo = String(data.modelo || '').trim();
+  if (!numeroSerie || !modelo) throw new Error('Número de série e modelo são obrigatórios.');
+  await ensureNumeroSerieDisponivel(numeroSerie, equipamentoId);
+
+  const { data: updated, error } = await supabase
+    .from('equipamentos')
+    .update({
+      numero_serie: numeroSerie,
+      modelo,
+      potencia: data.potencia || null,
+      tensao: data.tensao || null,
+      data_fabricacao: data.dataFabricacao || null,
+      data_venda: data.dataVenda || null,
+    })
+    .eq('id', equipamentoId)
+    .select('*')
+    .single();
+
+  if (error) raise(error, 'Erro ao atualizar equipamento');
+  return mapEquipamento(updated);
 }
 
 export async function criarGarantia(data: any) {

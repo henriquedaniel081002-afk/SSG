@@ -9,7 +9,7 @@ import {
   Info, AlertTriangle, Calendar, User, UserCheck, ShieldAlert
 } from 'lucide-react';
 import { DBState, Garantia, StatusGarantia, Usuario } from '../types';
-import { atualizarGarantia, buscarEstadoCompleto, criarCliente, criarEquipamento, criarGarantia, excluirGarantia } from '../services/api';
+import { atualizarCliente, atualizarEquipamento, atualizarGarantia, buscarEstadoCompleto, criarCliente, criarEquipamento, criarGarantia, excluirGarantia } from '../services/api';
 
 interface CadastroGarantiasProps {
   db: DBState;
@@ -51,6 +51,7 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
 
   // Client subform state (if adding a new client)
   const [addNewClientMode, setAddNewClientMode] = useState(false);
+  const [editingClientId, setEditingClientId] = useState<string | null>(null);
   const [newClientNome, setNewClientNome] = useState('');
   const [newClientContato, setNewClientContato] = useState('');
   const [newClientTelefone, setNewClientTelefone] = useState('');
@@ -60,6 +61,7 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
 
   // Equipment subform state (if adding a new equipment)
   const [addNewEquipMode, setAddNewEquipMode] = useState(false);
+  const [editingEquipId, setEditingEquipId] = useState<string | null>(null);
   const [newEquipSerie, setNewEquipSerie] = useState('');
   const [newEquipModelo, setNewEquipModelo] = useState('');
   const [newEquipPotencia, setNewEquipPotencia] = useState('500 kVA');
@@ -113,6 +115,7 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
     setPrazoDias(30);
 
     setAddNewClientMode(false);
+    setEditingClientId(null);
     setNewClientNome('');
     setNewClientContato('');
     setNewClientTelefone('');
@@ -121,6 +124,7 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
     setNewClientEstado('');
 
     setAddNewEquipMode(false);
+    setEditingEquipId(null);
     setNewEquipSerie('');
     setNewEquipModelo('');
     setNewEquipPotencia('500 kVA');
@@ -149,6 +153,40 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
     setPrazoDias(garantia.prazoDias);
 
     setIsFormOpen(true);
+  };
+
+  const handleEditSelectedClient = () => {
+    const cliente = clientes.find((item) => item.id === selectedClienteId);
+    if (!cliente) {
+      alert('Selecione um cliente para editar.');
+      return;
+    }
+
+    setEditingClientId(cliente.id);
+    setAddNewClientMode(true);
+    setNewClientNome(cliente.nome);
+    setNewClientContato(cliente.contato);
+    setNewClientTelefone(cliente.telefone);
+    setNewClientEmail(cliente.email);
+    setNewClientCidade(cliente.cidade);
+    setNewClientEstado(cliente.estado);
+  };
+
+  const handleEditSelectedEquipment = () => {
+    const equipamento = equipamentos.find((item) => item.id === selectedEquipamentoId);
+    if (!equipamento) {
+      alert('Selecione um equipamento para editar.');
+      return;
+    }
+
+    setEditingEquipId(equipamento.id);
+    setAddNewEquipMode(true);
+    setNewEquipSerie(equipamento.numeroSerie);
+    setNewEquipModelo(equipamento.modelo);
+    setNewEquipPotencia(equipamento.potencia);
+    setNewEquipTensao(equipamento.tensao);
+    setNewEquipFabricacao(equipamento.dataFabricacao);
+    setNewEquipVenda(equipamento.dataVenda);
   };
 
   // --- DELETE WARRANTY ---
@@ -185,7 +223,9 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
         }
 
         const clienteDuplicado = clientes.some(
-          (cliente) => normalizeUniqueText(cliente.nome) === normalizeUniqueText(nomeClienteNormalizado)
+          (cliente) =>
+            cliente.id !== editingClientId &&
+            normalizeUniqueText(cliente.nome) === normalizeUniqueText(nomeClienteNormalizado)
         );
 
         if (clienteDuplicado) {
@@ -204,7 +244,9 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
         }
 
         if (equipamentos.some(
-          (equipamento) => normalizeUniqueText(equipamento.numeroSerie) === normalizeUniqueText(serieEquipamentoNormalizada)
+          (equipamento) =>
+            equipamento.id !== editingEquipId &&
+            normalizeUniqueText(equipamento.numeroSerie) === normalizeUniqueText(serieEquipamentoNormalizada)
         )) {
           alert(`O número de série "${serieEquipamentoNormalizada}" já está cadastrado em outro transformador.`);
           return;
@@ -238,29 +280,37 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
       let finalEquipamentoId = selectedEquipamentoId;
 
       if (addNewClientMode) {
-        const novoCliente = await criarCliente({
+        const clientePayload = {
           nome: nomeClienteNormalizado,
-          contato: newClientContato,
-          telefone: newClientTelefone,
-          email: newClientEmail,
-          cidade: newClientCidade,
-          estado: newClientEstado
-        });
+          contato: newClientContato.trim(),
+          telefone: newClientTelefone.trim(),
+          email: newClientEmail.trim(),
+          cidade: newClientCidade.trim(),
+          estado: newClientEstado.trim().toUpperCase()
+        };
 
-        finalClienteId = novoCliente.id;
+        const clienteSalvo = editingClientId
+          ? await atualizarCliente(editingClientId, clientePayload)
+          : await criarCliente(clientePayload);
+
+        finalClienteId = clienteSalvo.id;
       }
 
       if (addNewEquipMode) {
-        const novoEquipamento = await criarEquipamento({
+        const equipamentoPayload = {
           numeroSerie: serieEquipamentoNormalizada,
           modelo: modeloEquipamentoNormalizado,
-          potencia: newEquipPotencia,
-          tensao: newEquipTensao,
+          potencia: newEquipPotencia.trim(),
+          tensao: newEquipTensao.trim(),
           dataFabricacao: newEquipFabricacao,
           dataVenda: newEquipVenda
-        });
+        };
 
-        finalEquipamentoId = novoEquipamento.id;
+        const equipamentoSalvo = editingEquipId
+          ? await atualizarEquipamento(editingEquipId, equipamentoPayload)
+          : await criarEquipamento(equipamentoPayload);
+
+        finalEquipamentoId = equipamentoSalvo.id;
       }
 
       const garantiaPayload = {
@@ -618,31 +668,53 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setAddNewClientMode(!addNewClientMode);
-                      setSelectedClienteId('');
+                      if (addNewClientMode) {
+                        setAddNewClientMode(false);
+                        setEditingClientId(null);
+                      } else {
+                        setAddNewClientMode(true);
+                        setEditingClientId(null);
+                        setSelectedClienteId('');
+                      }
                     }}
                     className="text-[10px] font-bold text-brand-light hover:underline"
                   >
-                    {addNewClientMode ? ' Selecionar Cliente Existente' : '➕ Cadastrar Novo Cliente'}
+                    {addNewClientMode ? 'Selecionar Cliente Existente' : '➕ Cadastrar Novo Cliente'}
                   </button>
                 </div>
 
                 {!addNewClientMode ? (
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Escolher Cliente do Sistema *</label>
-                    <select
-                      value={selectedClienteId}
-                      onChange={(e) => setSelectedClienteId(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-light"
-                    >
-                      <option value="">Selecione o Cliente na lista...</option>
-                      {clientes.map((c) => (
-                        <option key={c.id} value={c.id}>{c.nome} ({c.cidade} - {c.estado})</option>
-                      ))}
-                    </select>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <select
+                        value={selectedClienteId}
+                        onChange={(e) => setSelectedClienteId(e.target.value)}
+                        className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none focus:ring-2 focus:ring-brand-light"
+                      >
+                        <option value="">Selecione o Cliente na lista...</option>
+                        {clientes.map((c) => (
+                          <option key={c.id} value={c.id}>{c.nome} ({c.cidade} - {c.estado})</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleEditSelectedClient}
+                        disabled={!selectedClienteId}
+                        className="px-3 py-2 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" /> Editar cliente
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-in fade-in duration-150">
+                  <div className="space-y-3 animate-in fade-in duration-150">
+                    {editingClientId && (
+                      <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-700">
+                        <Edit2 className="w-3.5 h-3.5" /> Editando cliente selecionado. As garantias vinculadas serão atualizadas automaticamente.
+                      </div>
+                    )}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="sm:col-span-2">
                       <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Razão Social / Nome Fantasia *</label>
                       <input
@@ -707,6 +779,7 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
                       </div>
                     </div>
                   </div>
+                  </div>
                 )}
               </div>
 
@@ -719,34 +792,56 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setAddNewEquipMode(!addNewEquipMode);
-                      setSelectedEquipamentoId('');
+                      if (addNewEquipMode) {
+                        setAddNewEquipMode(false);
+                        setEditingEquipId(null);
+                      } else {
+                        setAddNewEquipMode(true);
+                        setEditingEquipId(null);
+                        setSelectedEquipamentoId('');
+                      }
                     }}
                     className="text-[10px] font-bold text-brand-light hover:underline"
                   >
-                    {addNewEquipMode ? ' Selecionar Equipamento Existente' : '➕ Cadastrar Novo Equipamento'}
+                    {addNewEquipMode ? 'Selecionar Equipamento Existente' : '➕ Cadastrar Novo Equipamento'}
                   </button>
                 </div>
 
                 {!addNewEquipMode ? (
                   <div>
                     <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Escolher por Nº de Série cadastrado *</label>
-                    <select
-                      value={selectedEquipamentoId}
-                      onChange={(e) => setSelectedEquipamentoId(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-light"
-                    >
-                      <option value="">Selecione o Transformador...</option>
-                      {equipamentosDisponiveis.map((eq) => (
-                        <option key={eq.id} value={eq.id}>{eq.numeroSerie} - {eq.modelo.split(' (')[0]} ({eq.potencia})</option>
-                      ))}
-                    </select>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <select
+                        value={selectedEquipamentoId}
+                        onChange={(e) => setSelectedEquipamentoId(e.target.value)}
+                        className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono focus:outline-none focus:ring-2 focus:ring-brand-light"
+                      >
+                        <option value="">Selecione o Transformador...</option>
+                        {equipamentosDisponiveis.map((eq) => (
+                          <option key={eq.id} value={eq.id}>{eq.numeroSerie} - {eq.modelo.split(' (')[0]} ({eq.potencia})</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleEditSelectedEquipment}
+                        disabled={!selectedEquipamentoId}
+                        className="px-3 py-2 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" /> Editar equipamento
+                      </button>
+                    </div>
                     <p className="mt-1 text-[9px] text-slate-400">
                       São exibidos apenas equipamentos que ainda não possuem garantia cadastrada.
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 animate-in fade-in duration-150">
+                  <div className="space-y-3 animate-in fade-in duration-150">
+                    {editingEquipId && (
+                      <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-700">
+                        <Edit2 className="w-3.5 h-3.5" /> Editando equipamento selecionado. O vínculo com a garantia será preservado.
+                      </div>
+                    )}
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <div>
                       <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Número de Série *</label>
                       <input
@@ -805,6 +900,7 @@ export const CadastroGarantias: React.FC<CadastroGarantiasProps> = ({
                         className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono"
                       />
                     </div>
+                  </div>
                   </div>
                 )}
               </div>
