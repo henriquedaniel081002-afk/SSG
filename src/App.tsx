@@ -1,14 +1,8 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
+import { RefreshCw, WifiOff } from 'lucide-react';
 import { buscarEstadoCompleto, obterUsuarioLogado, sairDoSistema } from './services/api';
-import { DBState, Garantia, Usuario } from './types';
-
-// Component imports
+import { DBState, Garantia, StatusGarantia, Usuario } from './types';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { CadastroGarantias } from './components/CadastroGarantias';
@@ -17,397 +11,256 @@ import { Relatorios } from './components/Relatorios';
 import { Configuracoes } from './components/Configuracoes';
 import { VisualizacaoGarantia } from './components/VisualizacaoGarantia';
 import { Login } from './components/Login';
+import { Button, Card, FeedbackProvider, useFeedback } from './components/ui';
+import { AppShell } from './components/layout/AppShell';
+import { Topbar } from './components/layout/Topbar';
 
-import { 
-  Bell, HelpCircle, Shield, Wrench, Eye, Clock, 
-  MapPin, CheckCircle, Info, Menu, X, ArrowUpRight, AlertTriangle
-} from 'lucide-react';
+export type AppView = 'dashboard' | 'cadastro' | 'registro-foto' | 'relatorios' | 'configuracoes';
+export interface NavigationIntent {
+  type: 'create' | 'edit';
+  garantiaId?: string;
+  nonce: number;
+}
 
-export default function App() {
-  const [db, setDb] = useState<DBState>({
-    garantias: [],
-    clientes: [],
-    equipamentos: [],
-    fotos: [],
-    historicos: [],
-    usuarios: [],
-    currentUser: null
-  });
+const emptyState: DBState = {
+  garantias: [],
+  clientes: [],
+  equipamentos: [],
+  fotos: [],
+  historicos: [],
+  usuarios: [],
+  currentUser: null,
+};
+
+const viewMeta: Record<AppView, { eyebrow: string; title: string }> = {
+  dashboard: { eyebrow: 'Visão geral', title: 'Dashboard operacional' },
+  cadastro: { eyebrow: 'Operação', title: 'Gestão de garantias' },
+  'registro-foto': { eyebrow: 'Documentação', title: 'Registro fotográfico' },
+  relatorios: { eyebrow: 'Análise', title: 'Relatórios' },
+  configuracoes: { eyebrow: 'Administração', title: 'Usuários e configurações' },
+};
+
+function AppContent() {
+  const { notify } = useFeedback();
+  const [db, setDb] = useState<DBState>(emptyState);
   const [isLoading, setIsLoading] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
-  const [apiError, setApiError] = useState<string | null>(null);
-  const [currentTab, setCurrentTab] = useState<string>('dashboard');
-  const [selectedGarantia, setSelectedGarantia] = useState<Garantia | null>(null);
-  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' | 'warning' | 'info' } | null>(null);
+  const [systemError, setSystemError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [currentTab, setCurrentTab] = useState<AppView>('dashboard');
+  const [selectedGarantiaId, setSelectedGarantiaId] = useState<string | null>(null);
+  const [warrantyAction, setWarrantyAction] = useState<NavigationIntent | undefined>();
+  const [photoTargetId, setPhotoTargetId] = useState<string | undefined>();
 
-
-  // Substitui os alertas nativos do navegador por notificações modernas e não bloqueantes.
-  useEffect(() => {
-    const originalAlert = window.alert;
-    let timer: number | undefined;
-
-    window.alert = (message?: unknown) => {
-      const text = String(message ?? '');
-      const normalized = text.toLocaleLowerCase('pt-BR');
-      const type: 'success' | 'error' | 'warning' | 'info' =
-        normalized.includes('sucesso') || normalized.includes('aprovado') || normalized.includes('atualizada') || normalized.includes('vinculada')
-          ? 'success'
-          : normalized.includes('erro') || normalized.includes('não foi possível') || normalized.includes('já está cadastrad') || normalized.includes('já possui')
-            ? 'error'
-            : normalized.includes('obrigat') || normalized.includes('selecione') || normalized.includes('apenas administradores') || normalized.includes('desativada')
-              ? 'warning'
-              : 'info';
-
-      setNotification({ message: text, type });
-      if (timer) window.clearTimeout(timer);
-      timer = window.setTimeout(() => setNotification(null), 4500);
-    };
-
-    return () => {
-      window.alert = originalAlert;
-      if (timer) window.clearTimeout(timer);
-    };
-  }, []);
-
-  // Active User Synchronization
   const currentUser = db.currentUser;
   const isAdmin = currentUser?.funcao === 'admin';
+  const selectedGarantia = selectedGarantiaId ? db.garantias.find((item) => item.id === selectedGarantiaId) || null : null;
 
-  const loadStateFromApi = async (preferredUserId?: string | null) => {
+  const applyRefreshedState = useCallback((nextState: DBState, preferredUser?: Usuario | null) => {
+    setDb((previous) => {
+      const authenticated = preferredUser || previous.currentUser;
+      const refreshedUser = authenticated ? nextState.usuarios.find((item) => item.id === authenticated.id) : null;
+      return { ...nextState, currentUser: refreshedUser || authenticated || null };
+    });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const bootstrap = async () => {
+      setIsLoading(true);
+      try {
+        setSystemError(null);
+        setAuthError(null);
+        const usuario = await obterUsuarioLogado();
+        if (cancelled) return;
+        if (usuario) {
+          setDb((previous) => ({ ...previous, currentUser: usuario }));
+          const apiState = await buscarEstadoCompleto(usuario.id);
+          if (!cancelled) setDb({ ...apiState, currentUser: usuario });
+        }
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : 'Não foi possível iniciar o sistema.';
+        console.error('Falha ao iniciar o SSG:', error);
+        const normalized = message.toLocaleLowerCase('pt-BR');
+        const isAccessState = ['pendente', 'recusad', 'inativ', 'ainda não está cadastrado'].some((term) => normalized.includes(term));
+        if (isAccessState) setAuthError(message);
+        else setSystemError(message);
+      } finally {
+        if (!cancelled) {
+          setAuthChecked(true);
+          setIsLoading(false);
+        }
+      }
+    };
+    void bootstrap();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleUpdateState = useCallback((newState: DBState) => {
+    applyRefreshedState(newState);
+  }, [applyRefreshedState]);
+
+  const handleLoginSuccess = async (user: Usuario) => {
+    setIsLoading(true);
+    setSystemError(null);
+    setAuthError(null);
+    setDb((previous) => ({ ...previous, currentUser: user }));
     try {
-      setApiError(null);
-      const apiState = await buscarEstadoCompleto(preferredUserId || db.currentUser?.id || null);
-      setDb((prev) => ({
-        ...apiState,
-        currentUser: apiState.usuarios.find((u) => u.id === (preferredUserId || prev.currentUser?.id)) || apiState.currentUser,
-      }));
+      const apiState = await buscarEstadoCompleto(user.id);
+      setDb({ ...apiState, currentUser: user });
+      setCurrentTab('dashboard');
     } catch (error) {
-      console.error(error);
-      setApiError(error instanceof Error ? error.message : 'Erro ao conectar ao Supabase');
+      const message = error instanceof Error ? error.message : 'Não foi possível carregar os dados após o login.';
+      console.error('Falha ao carregar o SSG após a autenticação:', error);
+      setSystemError(message);
+      throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    const bootstrap = async () => {
-      try {
-        setApiError(null);
-        const usuario = await obterUsuarioLogado();
-        if (usuario) {
-          const apiState = await buscarEstadoCompleto(usuario.id);
-          setDb({ ...apiState, currentUser: usuario });
-        }
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setAuthChecked(true);
-        setIsLoading(false);
-      }
-    };
-
-    bootstrap();
-  }, []);
-
-  // Atualiza somente o estado em tela. A gravação permanente acontece no Supabase.
-  const handleUpdateState = (newState: DBState) => {
-    setDb(newState);
-  };
-
-  const handleLoginSuccess = async (user: Usuario) => {
-    setIsLoading(true);
-    const apiState = await buscarEstadoCompleto(user.id);
-    setDb({ ...apiState, currentUser: user });
-    setApiError(null);
-    setIsLoading(false);
-  };
-
   const handleLogout = async () => {
-    await sairDoSistema();
-    setDb({
-      garantias: [],
-      clientes: [],
-      equipamentos: [],
-      fotos: [],
-      historicos: [],
-      usuarios: [],
-      currentUser: null,
-    });
-    setCurrentTab('dashboard');
+    try {
+      await sairDoSistema();
+      setDb(emptyState);
+      setCurrentTab('dashboard');
+      setSelectedGarantiaId(null);
+      setWarrantyAction(undefined);
+      setPhotoTargetId(undefined);
+      setSystemError(null);
+      setAuthError(null);
+      notify('Sessão encerrada com segurança.', 'info');
+    } catch (error) {
+      notify(error instanceof Error ? error.message : 'Não foi possível sair do sistema.', 'error');
+    }
   };
 
-  const handleSelectGarantia = (garantia: Garantia) => {
-    setSelectedGarantia(garantia);
+  const navigate = useCallback((tab: string, action?: string, garantiaId?: string) => {
+    const nextTab = tab as AppView;
+    if (nextTab === 'configuracoes' && !isAdmin) {
+      notify('A administração de usuários é restrita a administradores.', 'warning');
+      return;
+    }
+    setCurrentTab(nextTab);
+    if (nextTab === 'cadastro' && (action === 'create' || action === 'edit')) {
+      setWarrantyAction({ type: action, garantiaId, nonce: Date.now() });
+    }
+    if (nextTab === 'registro-foto') setPhotoTargetId(garantiaId);
+  }, [isAdmin, notify]);
+
+  const openEditWarranty = (garantia: Garantia) => {
+    setSelectedGarantiaId(null);
+    navigate('cadastro', 'edit', garantia.id);
   };
 
-  // Render current tab component
   const renderTabContent = () => {
     switch (currentTab) {
       case 'dashboard':
         return (
-          <Dashboard 
-            db={db} 
-            onSelectGarantia={handleSelectGarantia} 
-            onNavigateToTab={setCurrentTab}
+          <Dashboard
+            db={db}
+            onSelectGarantia={(garantia) => setSelectedGarantiaId(garantia.id)}
+            onNavigateToTab={(tab) => navigate(tab)}
+            onNavigate={navigate}
           />
         );
       case 'cadastro':
         return (
-          <CadastroGarantias 
-            db={db} 
-            onUpdateState={handleUpdateState} 
+          <CadastroGarantias
+            db={db}
+            onUpdateState={handleUpdateState}
             currentUser={currentUser}
-            onSelectGarantia={handleSelectGarantia}
+            onSelectGarantia={(garantia) => setSelectedGarantiaId(garantia.id)}
+            requestedAction={warrantyAction}
+            onActionHandled={() => setWarrantyAction(undefined)}
           />
         );
       case 'registro-foto':
         return (
-          <RegistroFotografico 
-            db={db} 
-            onUpdateState={handleUpdateState} 
+          <RegistroFotografico
+            db={db}
+            onUpdateState={handleUpdateState}
             currentUser={currentUser}
+            initialGarantiaId={photoTargetId}
+            onInitialGarantiaHandled={() => setPhotoTargetId(undefined)}
+            onNotify={notify}
           />
         );
       case 'relatorios':
-        return (
-          <Relatorios 
-            db={db} 
-            onSelectGarantia={handleSelectGarantia}
-          />
-        );
+        return <Relatorios db={db} onSelectGarantia={(garantia) => setSelectedGarantiaId(garantia.id)} onNotify={notify} />;
       case 'configuracoes':
-        if (!isAdmin) {
-          return (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center space-y-2">
-              <Shield className="w-10 h-10 text-slate-300 mx-auto" />
-              <h2 className="text-lg font-bold text-slate-800">Acesso restrito</h2>
-              <p className="text-sm text-slate-500">A administração de usuários está disponível somente para administradores.</p>
-            </div>
-          );
-        }
-        return (
-          <Configuracoes 
-            db={db} 
-            onUpdateState={handleUpdateState} 
-            currentUser={currentUser}
-          />
-        );
+        return isAdmin ? <Configuracoes db={db} onUpdateState={handleUpdateState} currentUser={currentUser} onNotify={notify} /> : null;
       default:
-        return (
-          <Dashboard 
-            db={db} 
-            onSelectGarantia={handleSelectGarantia} 
-            onNavigateToTab={setCurrentTab}
-          />
-        );
+        return null;
     }
   };
-
-  // Get active user role label
-  const getRoleLabel = (role?: string) => {
-    switch (role) {
-      case 'admin': return 'Administrador';
-      default: return 'Usuário';
-    }
-  };
-
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-brand-gray flex items-center justify-center p-6">
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 max-w-md w-full text-center space-y-2">
-          <div className="w-8 h-8 rounded-full border-2 border-brand-light border-t-transparent animate-spin mx-auto" />
-          <h1 className="text-sm font-bold text-slate-800">Carregando sistema...</h1>
-          <p className="text-xs text-slate-500">Verificando autenticação, banco e storage.</p>
-        </div>
-      </div>
+      <main className="surface-grid flex min-h-screen items-center justify-center bg-background p-5">
+        <Card className="w-full max-w-md p-7 text-center">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-soft text-primary"><RefreshCw className="h-6 w-6 animate-spin" aria-hidden="true" /></div>
+          <h1 className="text-lg font-bold text-text-primary">Preparando o ambiente</h1>
+          <p className="mt-2 text-sm text-text-secondary">Verificando sessão e carregando os dados de garantias.</p>
+        </Card>
+      </main>
     );
   }
 
-  if (apiError && currentUser) {
+  if (systemError) {
     return (
-      <div className="min-h-screen bg-brand-gray flex items-center justify-center p-6">
-        <div className="bg-white border border-rose-200 rounded-2xl shadow-sm p-6 max-w-xl w-full space-y-3">
-          <h1 className="text-lg font-bold text-rose-700">Não foi possível conectar ao Supabase</h1>
-          <p className="text-sm text-slate-600">{apiError}</p>
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600 font-mono">
-            <div>1. Verifique o arquivo .env na raiz do projeto</div>
-            <div>2. Confirme VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY</div>
-            <div>3. Execute os scripts SQL em /supabase</div>
+      <main className="surface-grid flex min-h-screen items-center justify-center bg-background p-5">
+        <Card className="w-full max-w-lg p-7">
+          <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-danger/10 text-danger"><WifiOff className="h-6 w-6" aria-hidden="true" /></div>
+          <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-danger">Conexão indisponível</p>
+          <h1 className="mt-2 text-2xl font-bold text-text-primary">Não foi possível carregar o sistema</h1>
+          <p className="mt-3 text-sm leading-relaxed text-text-secondary">O serviço está temporariamente indisponível. Verifique sua conexão e tente novamente em instantes.</p>
+          <div className="mt-6 flex flex-wrap gap-2">
+            <Button icon={RefreshCw} onClick={() => window.location.reload()}>Tentar novamente</Button>
+            {currentUser ? <Button variant="secondary" onClick={() => void handleLogout()}>Sair</Button> : null}
           </div>
-          <button
-            onClick={() => loadStateFromApi()}
-            className="px-4 py-2 bg-brand-light text-white text-xs font-bold rounded-lg hover:bg-green-700"
-          >
-            Tentar novamente
-          </button>
-        </div>
-      </div>
+        </Card>
+      </main>
     );
   }
 
-  if (authChecked && !currentUser) {
-    return <Login onLoginSuccess={handleLoginSuccess} />;
-  }
+  if (authChecked && !currentUser) return <Login onLoginSuccess={handleLoginSuccess} initialError={authError} />;
+
+  const openCount = db.garantias.filter((item) => item.status !== StatusGarantia.CONCLUIDO && item.status !== StatusGarantia.ENCERRADO).length;
+  const meta = viewMeta[currentTab];
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-brand-gray text-[#334155] antialiased font-sans">
-      
-      {/* Sidebar navigation */}
-      <Sidebar 
-        currentTab={currentTab} 
-        setCurrentTab={setCurrentTab} 
-        currentUser={currentUser}
-        onLogout={handleLogout}
-      />
-
-      {/* Main content body */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
-        
-        {/* Top bar header */}
-        <header className="hidden md:flex h-16 bg-white border-b border-slate-200 px-8 items-center justify-between sticky top-0 z-20 shadow-xs">
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] font-bold text-brand-light uppercase tracking-widest font-mono">Sistema de Garantia - ITAM</span>
-          </div>
-
-          <div className="flex items-center gap-6">
-            {/* Quick stats indicators in header */}
-            <div className="flex items-center gap-4 text-xs font-medium text-slate-500 border-r border-slate-200 pr-6">
-              <div className="flex items-center gap-1.5">
-                <Clock className="w-4 h-4 text-slate-400" />
-                <span>Hoje: <strong className="text-slate-700">25/06/2026</strong></span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <CheckCircle className="w-4 h-4 text-emerald-500" />
-                <span>Atendidos: <strong className="text-slate-700">{db.garantias.filter(g => g.status === 'Concluído').length}</strong></span>
-              </div>
-            </div>
-
-            {/* Active Operator info */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400 font-medium">Perfil:</span>
-              <span className="text-xs font-bold text-brand-dark bg-slate-100 px-2.5 py-1 rounded-lg">
-                {currentUser?.nome} ({getRoleLabel(currentUser?.funcao)})
-              </span>
-            </div>
-          </div>
-        </header>
-
-        {/* Tab content wrapper with smooth motion layout transitions */}
-        <div className="p-4 md:p-8 flex-1 max-w-7xl w-full mx-auto print:p-0">
+    <>
+      <AppShell
+        navigation={<Sidebar currentTab={currentTab} setCurrentTab={(tab) => navigate(tab)} currentUser={currentUser} onLogout={handleLogout} />}
+        topbar={<Topbar eyebrow={meta.eyebrow} title={meta.title} currentUser={currentUser} openCount={openCount} />}
+        footer={<footer className="app-footer border-t border-border px-6 py-5 text-center text-[11px] text-text-muted md:flex md:justify-between md:text-left xl:px-8"><span>ITAM Transformadores · Sistema de Gestão de Garantias</span><span>Operação industrial com rastreabilidade</span></footer>}
+      >
           <AnimatePresence mode="wait">
-            <motion.div
-              key={currentTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="w-full h-full"
-            >
+            <motion.div key={currentTab} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.16 }}>
               {renderTabContent()}
             </motion.div>
           </AnimatePresence>
-        </div>
+      </AppShell>
 
-        {/* Footer info */}
-        <footer className="py-6 px-8 border-t border-slate-200 text-center text-[10px] text-slate-400 bg-white font-medium flex flex-col sm:flex-row justify-between gap-2 mt-auto print:hidden">
-          <span>Sistema de Garantia - ITAM • Gestão de Garantias de Transformadores Industriais</span>
-          <span className="flex items-center justify-center gap-1">
-            ITAM Transformadores <ArrowUpRight className="w-3 h-3 text-slate-300" />
-          </span>
-        </footer>
-
-      </main>
-
-      <AnimatePresence>
-        {notification && (
-          <motion.div
-            initial={{ opacity: 0, y: -18, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -12, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="fixed top-5 right-5 z-[100] w-[calc(100%-2rem)] max-w-md print:hidden"
-            role="status"
-            aria-live="polite"
-          >
-            <div className={`rounded-2xl border bg-white shadow-2xl shadow-slate-900/15 overflow-hidden ${
-              notification.type === 'success' ? 'border-emerald-200' :
-              notification.type === 'error' ? 'border-rose-200' :
-              notification.type === 'warning' ? 'border-amber-200' : 'border-sky-200'
-            }`}>
-              <div className="flex items-start gap-3 p-4">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                  notification.type === 'success' ? 'bg-emerald-50 text-emerald-600' :
-                  notification.type === 'error' ? 'bg-rose-50 text-rose-600' :
-                  notification.type === 'warning' ? 'bg-amber-50 text-amber-600' : 'bg-sky-50 text-sky-600'
-                }`}>
-                  {notification.type === 'success' ? <CheckCircle className="w-5 h-5" /> :
-                   notification.type === 'error' || notification.type === 'warning' ? <AlertTriangle className="w-5 h-5" /> :
-                   <Info className="w-5 h-5" />}
-                </div>
-                <div className="min-w-0 flex-1 pt-0.5">
-                  <p className="text-sm font-bold text-slate-900">
-                    {notification.type === 'success' ? 'Operação concluída' :
-                     notification.type === 'error' ? 'Não foi possível concluir' :
-                     notification.type === 'warning' ? 'Atenção necessária' : 'Informação'}
-                  </p>
-                  <p className="text-xs leading-relaxed text-slate-600 mt-1">{notification.message}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setNotification(null)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                  aria-label="Fechar notificação"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <motion.div
-                key={notification.message}
-                initial={{ width: '100%' }}
-                animate={{ width: '0%' }}
-                transition={{ duration: 4.5, ease: 'linear' }}
-                className={`h-1 ${
-                  notification.type === 'success' ? 'bg-emerald-500' :
-                  notification.type === 'error' ? 'bg-rose-500' :
-                  notification.type === 'warning' ? 'bg-amber-500' : 'bg-sky-500'
-                }`}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* POPUP FULL-DETAIL DIALOG (OVERLAY WINDOW) */}
-      <AnimatePresence>
-        {selectedGarantia && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto backdrop-blur-xs print:relative print:z-0 print:bg-white print:p-0 print:overflow-visible">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.22, ease: 'easeOut' }}
-              className="w-full max-w-5xl my-8 print:my-0 print:max-w-full"
-            >
-              <VisualizacaoGarantia
-                garantia={selectedGarantia}
-                clientes={db.clientes}
-                equipamentos={db.equipamentos}
-                fotos={db.fotos}
-                historicos={db.historicos}
-                usuarios={db.usuarios}
-                onClose={() => setSelectedGarantia(null)}
-                onEdit={currentUser ? () => {
-                  // Navigate to edit in registration tab
-                  setCurrentTab('cadastro');
-                  setSelectedGarantia(null);
-                } : undefined}
-              />
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-    </div>
+      {selectedGarantia ? (
+        <VisualizacaoGarantia
+          garantia={selectedGarantia}
+          clientes={db.clientes}
+          equipamentos={db.equipamentos}
+          fotos={db.fotos}
+          historicos={db.historicos}
+          usuarios={db.usuarios}
+          onClose={() => setSelectedGarantiaId(null)}
+          onEdit={() => openEditWarranty(selectedGarantia)}
+          onNotify={notify}
+        />
+      ) : null}
+    </>
   );
+}
+
+export default function App() {
+  return <FeedbackProvider><AppContent /></FeedbackProvider>;
 }

@@ -1,12 +1,18 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { useState } from 'react';
-import { 
-  LayoutDashboard, ClipboardList, Camera, FileSpreadsheet, 
-  Settings, Menu, X, Shield, User, LogOut
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  FileSpreadsheet,
+  LayoutDashboard,
+  Loader2,
+  LogOut,
+  Menu,
+  Settings,
+  Shield,
+  User,
+  X,
 } from 'lucide-react';
 import { Usuario } from '../types';
 import itamLogo from '../assets/itam-logo.png';
@@ -15,153 +21,172 @@ interface SidebarProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   currentUser: Usuario | null;
-  onLogout: () => void;
+  onLogout: () => void | Promise<void>;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({
-  currentTab,
-  setCurrentTab,
-  currentUser,
-  onLogout
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-
+export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab, currentUser, onLogout }) => {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileDrawerRef = useRef<HTMLElement>(null);
   const isAdmin = currentUser?.funcao === 'admin';
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'cadastro', label: 'Cadastro de Garantias', icon: ClipboardList },
-    { id: 'registro-foto', label: 'Registro Fotográfico', icon: Camera },
+    { id: 'cadastro', label: 'Garantias', icon: ClipboardList },
+    { id: 'registro-foto', label: 'Registro fotográfico', icon: Camera },
     { id: 'relatorios', label: 'Relatórios', icon: FileSpreadsheet },
     ...(isAdmin ? [{ id: 'configuracoes', label: 'Administração', icon: Settings }] : []),
   ];
 
-  const getRoleIcon = (role?: string) => {
-    switch (role) {
-      case 'admin':
-        return <Shield className="w-4 h-4 text-rose-500" />;
-      default:
-        return <User className="w-4 h-4 text-slate-500" />;
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setMobileOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab' || !mobileDrawerRef.current) return;
+      const focusable = Array.from(mobileDrawerRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )) as HTMLElement[];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      menuButtonRef.current?.focus();
+    };
+  }, [mobileOpen]);
+
+  const handleLogout = async () => {
+    if (logoutBusy) return;
+    setLogoutBusy(true);
+    try {
+      await onLogout();
+    } finally {
+      setLogoutBusy(false);
     }
   };
 
-  const getRoleLabel = (role?: string) => {
-    switch (role) {
-      case 'admin': return 'Administrador';
-      default: return 'Usuário';
-    }
+  const navigate = (tab: string) => {
+    setCurrentTab(tab);
+    setMobileOpen(false);
   };
 
-  const toggleSidebar = () => setIsOpen(!isOpen);
+  const asideContent = (mobile = false) => (
+    <>
+      <div>
+        <div className={`flex h-20 items-center border-b border-border px-4 ${collapsed && !mobile ? 'justify-center' : 'justify-between'}`}>
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex h-10 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border-strong bg-white p-1 shadow-sm">
+              <img src={itamLogo} alt="ITAM Transformadores" className="h-full w-full object-contain" />
+            </div>
+            {(!collapsed || mobile) && (
+              <div className="min-w-0">
+                <p className="font-mono text-[9px] font-semibold uppercase tracking-[0.18em] text-primary">ITAM</p>
+                <p className="truncate text-xs font-bold text-text-primary">Gestão de Garantias</p>
+              </div>
+            )}
+          </div>
+          {mobile ? (
+            <button ref={closeButtonRef} type="button" aria-label="Fechar menu" onClick={() => setMobileOpen(false)} className="flex h-11 w-11 items-center justify-center rounded-xl text-text-secondary hover:bg-surface-hover hover:text-text-primary">
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          ) : null}
+        </div>
+
+        <nav aria-label="Navegação principal" className="space-y-1 p-3">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const active = currentTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => navigate(item.id)}
+                aria-current={active ? 'page' : undefined}
+                title={collapsed && !mobile ? item.label : undefined}
+                className={`group relative flex min-h-11 w-full items-center rounded-xl transition-colors ${collapsed && !mobile ? 'justify-center px-2' : 'gap-3 px-3'} ${active ? 'bg-primary text-white shadow-[0_10px_28px_rgba(7,130,68,0.25)]' : 'text-text-secondary hover:bg-surface-hover hover:text-text-primary'}`}
+              >
+                <Icon className="h-5 w-5 shrink-0" aria-hidden="true" />
+                {(!collapsed || mobile) && <span className="truncate text-sm font-semibold">{item.label}</span>}
+                {collapsed && !mobile ? <span className="pointer-events-none absolute left-[calc(100%+0.75rem)] z-50 hidden whitespace-nowrap rounded-lg border border-border bg-surface-elevated px-2.5 py-1.5 text-xs text-text-primary shadow-xl group-hover:block">{item.label}</span> : null}
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+
+      <div className="border-t border-border p-3">
+        <div className={`rounded-2xl bg-surface-elevated p-3 ${collapsed && !mobile ? 'flex flex-col items-center gap-2' : ''}`}>
+          <div className={`flex items-center ${collapsed && !mobile ? 'justify-center' : 'gap-3'}`}>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-primary-soft text-sm font-bold uppercase text-primary">
+              {currentUser?.nome?.slice(0, 2) || 'US'}
+            </div>
+            {(!collapsed || mobile) && (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-text-primary">{currentUser?.nome}</p>
+                <p className="flex items-center gap-1.5 text-[11px] text-text-muted">
+                  {isAdmin ? <Shield className="h-3.5 w-3.5" aria-hidden="true" /> : <User className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {isAdmin ? 'Administrador' : 'Usuário'}
+                </p>
+              </div>
+            )}
+          </div>
+          <button type="button" onClick={() => void handleLogout()} disabled={logoutBusy} title="Sair do sistema" className={`mt-3 flex min-h-11 items-center justify-center rounded-xl border border-border text-sm font-semibold text-text-secondary transition-colors hover:border-danger/50 hover:bg-danger/10 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-55 ${collapsed && !mobile ? 'h-11 w-11' : 'w-full gap-2 px-3'}`}>
+            {logoutBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <LogOut className="h-4 w-4" aria-hidden="true" />}
+            {(!collapsed || mobile) && (logoutBusy ? 'Saindo…' : 'Sair do sistema')}
+          </button>
+        </div>
+      </div>
+    </>
+  );
 
   return (
     <>
-      {/* Mobile Top Navbar */}
-      <div className="md:hidden bg-brand-dark text-white h-16 px-4 flex items-center justify-between sticky top-0 z-30 shadow-md">
-        <div className="flex items-center gap-2">
-          {/* Visual logo */}
-          <div className="w-10 h-8 rounded-lg bg-white flex items-center justify-center border border-brand-light/40 overflow-hidden p-0.5">
-            <img src={itamLogo} alt="ITAM" className="w-full h-full object-contain" />
-          </div>
-          <span className="font-bold text-sm font-sans tracking-tight">Sistema de Garantia - ITAM</span>
+      <div className="app-navigation sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border bg-surface/95 px-4 backdrop-blur-xl md:hidden">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-11 items-center justify-center overflow-hidden rounded-lg bg-white p-0.5"><img src={itamLogo} alt="ITAM" className="h-full w-full object-contain" /></div>
+          <div><p className="text-xs font-bold text-text-primary">Gestão de Garantias</p><p className="font-mono text-[9px] uppercase tracking-widest text-primary">ITAM</p></div>
         </div>
-        <button 
-          onClick={toggleSidebar}
-          className="p-2 hover:bg-slate-800 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-brand-light"
-          aria-label="Abrir Menu"
-        >
-          {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        <button ref={menuButtonRef} type="button" aria-label="Abrir menu" aria-controls="mobile-navigation-drawer" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)} className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-surface-elevated text-text-primary">
+          <Menu className="h-5 w-5" aria-hidden="true" />
         </button>
       </div>
 
-      {/* Sidebar Overlay for Mobile */}
-      {isOpen && (
-        <div 
-          onClick={toggleSidebar}
-          className="fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity"
-        />
-      )}
+      {mobileOpen && <button type="button" aria-label="Fechar menu" className="app-navigation fixed inset-0 z-40 bg-black/70 backdrop-blur-sm md:hidden" onClick={() => setMobileOpen(false)} />}
+      <aside id="mobile-navigation-drawer" ref={mobileDrawerRef} role="dialog" aria-modal="true" aria-label="Menu principal" aria-hidden={!mobileOpen} inert={!mobileOpen} className={`app-navigation fixed inset-y-0 left-0 z-50 flex w-72 flex-col justify-between border-r border-border bg-surface shadow-2xl transition-transform md:hidden ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        {asideContent(true)}
+      </aside>
 
-      {/* Sidebar Panel */}
-      <aside className={`
-        fixed md:static inset-y-0 left-0 w-64 bg-brand-dark text-white z-50 transform md:transform-none transition-transform duration-300 ease-in-out flex flex-col justify-between shadow-2xl md:shadow-none
-        ${isOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-      `}>
-        {/* Header Logo */}
-        <div>
-          <div className="h-16 px-6 border-b border-brand-light/20 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-11 h-9 rounded bg-white flex items-center justify-center shadow-sm border border-brand-light/40 overflow-hidden p-0.5 shrink-0">
-                <img src={itamLogo} alt="ITAM" className="w-full h-full object-contain" />
-              </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-[11px] leading-tight text-white tracking-tight uppercase font-sans">Sistema de Garantia - ITAM</span>
-              </div>
-            </div>
-            {/* Close button inside mobile sidebar */}
-            <button 
-              onClick={toggleSidebar}
-              className="p-1 hover:bg-slate-800 rounded md:hidden text-slate-400 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Navigation Links */}
-          <nav className="py-4">
-            {menuItems.map((item) => {
-              const IconComponent = item.icon;
-              const isActive = currentTab === item.id;
-
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setCurrentTab(item.id);
-                    setIsOpen(false);
-                  }}
-                  className={`
-                    w-full flex items-center gap-3 px-6 py-3.5 text-sm font-medium transition-all duration-150 relative group text-left
-                    ${isActive 
-                      ? 'bg-brand-light text-white font-semibold border-r-4 border-brand-light' 
-                      : 'text-green-100 hover:bg-brand-light/10 hover:text-white'
-                    }
-                  `}
-                >
-                  <IconComponent className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-105 ${isActive ? 'text-white' : 'text-green-200/60 group-hover:text-white'}`} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-
-        {/* Footer User Info */}
-        <div className="p-6 border-t border-brand-light/20 bg-slate-950/20 relative">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider font-mono">Usuário Logado</span>
-            <button 
-              onClick={onLogout}
-              className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-rose-300 transition-colors"
-              title="Sair do sistema"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2.5 p-1">
-            <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center border border-slate-700 font-semibold text-slate-200 uppercase text-xs">
-              {currentUser?.nome ? currentUser.nome.substring(0, 2) : 'US'}
-            </div>
-            <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-xs font-semibold text-slate-100 truncate block">{currentUser?.nome}</span>
-              <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                {getRoleIcon(currentUser?.funcao)}
-                {getRoleLabel(currentUser?.funcao)}
-              </span>
-            </div>
-          </div>
-        </div>
+      <aside className={`app-navigation sticky top-0 hidden h-screen shrink-0 flex-col justify-between border-r border-border bg-surface transition-[width] duration-200 md:flex ${collapsed ? 'w-20' : 'w-72'}`}>
+        {asideContent(false)}
+        <button
+          type="button"
+          aria-label={collapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
+          onClick={() => setCollapsed((value) => !value)}
+          className="absolute -right-[1.375rem] top-24 flex h-11 w-11 items-center justify-center rounded-full border border-border-strong bg-surface-elevated text-text-secondary shadow-lg hover:text-text-primary"
+        >
+          {collapsed ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : <ChevronLeft className="h-4 w-4" aria-hidden="true" />}
+        </button>
       </aside>
     </>
   );

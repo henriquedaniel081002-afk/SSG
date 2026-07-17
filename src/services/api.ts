@@ -288,13 +288,17 @@ export async function obterUsuarioLogado(): Promise<Usuario | null> {
   }
 
   const usuario = mapUsuario(data);
-  if (!usuario.ativo || usuario.status === 'pendente') {
-    await supabase.auth.signOut();
-    throw new Error('Seu cadastro ainda está pendente de aprovação por um administrador.');
-  }
   if (usuario.status === 'recusado') {
     await supabase.auth.signOut();
     throw new Error(usuario.motivoRecusa ? `Cadastro recusado: ${usuario.motivoRecusa}` : 'Seu cadastro foi recusado pelo administrador.');
+  }
+  if (usuario.status === 'pendente') {
+    await supabase.auth.signOut();
+    throw new Error('Seu cadastro ainda está pendente de aprovação por um administrador.');
+  }
+  if (!usuario.ativo) {
+    await supabase.auth.signOut();
+    throw new Error('Seu usuário está inativo. Solicite a reativação a um administrador.');
   }
 
   if (!usuario.authUserId) {
@@ -798,65 +802,106 @@ export async function salvarFoto(data: any) {
 
   const garantia = await getGarantiaRowByCodigo(data.garantiaId);
   const usuarioId = normalizeNumber(data.usuarioId);
+  const fotoId = normalizeNumber(data.fotoId);
+  let existing: { id: number; storage_path?: string | null; caminho_arquivo?: string | null } | null = null;
 
-  const { data: existing, error: existingError } = await supabase
-    .from('fotos_garantia')
-    .select('id, storage_path, caminho_arquivo')
-    .eq('garantia_id', garantia.id)
-    .eq('tipo', data.tipo)
-    .maybeSingle();
+  if (fotoId !== null) {
+    const { data: existingRow, error: existingError } = await supabase
+      .from('fotos_garantia')
+      .select('id, storage_path, caminho_arquivo')
+      .eq('id', fotoId)
+      .eq('garantia_id', garantia.id)
+      .maybeSingle();
 
-  if (existingError) raise(existingError, 'Erro ao verificar foto existente');
+    if (existingError) raise(existingError, 'Erro ao verificar foto existente');
+    if (!existingRow) throw new Error('A fotografia selecionada não foi encontrada para esta garantia.');
+    existing = existingRow;
+  }
 
   let caminhoArquivo = data.url || '';
   let storagePath = existing?.storage_path || null;
   let oldStoragePath: string | null = null;
+  let uploadedStoragePath: string | null = null;
+  let persistedRow: any = null;
 
   if (caminhoArquivo.startsWith('data:image/')) {
     const uploaded = await uploadFotoToStorage(data.garantiaId, data.tipo, caminhoArquivo);
     caminhoArquivo = uploaded.publicUrl;
     storagePath = uploaded.storagePath;
+    uploadedStoragePath = uploaded.storagePath;
     oldStoragePath = existing?.storage_path || null;
   }
 
   if (existing) {
-    const { error } = await supabase
+    const updatePayload: Record<string, any> = {
+      descricao: data.descricao || null,
+    };
+    if (uploadedStoragePath) {
+      updatePayload.caminho_arquivo = caminhoArquivo;
+      updatePayload.storage_path = storagePath;
+      updatePayload.usuario_id = usuarioId;
+      updatePayload.data_registro = new Date().toISOString();
+    }
+    const { data: updated, error } = await supabase
       .from('fotos_garantia')
-      .update({
+      .update(updatePayload)
+      .eq('id', existing.id)
+      .select('*, usuarios(nome)')
+      .single();
+
+    if (error) {
+      if (uploadedStoragePath) await supabase.storage.from(SUPABASE_STORAGE_BUCKET).remove([uploadedStoragePath]);
+      raise(error, 'Erro ao atualizar foto');
+    }
+    persistedRow = updated;
+  } else {
+    const { data: inserted, error } = await supabase
+      .from('fotos_garantia')
+      .insert({
+        garantia_id: garantia.id,
+        tipo: data.tipo,
         caminho_arquivo: caminhoArquivo,
         storage_path: storagePath,
         descricao: data.descricao || null,
         usuario_id: usuarioId,
-        data_registro: new Date().toISOString(),
       })
-      .eq('id', existing.id);
+      .select('*, usuarios(nome)')
+      .single();
 
-    if (error) raise(error, 'Erro ao atualizar foto');
-  } else {
-    const { error } = await supabase.from('fotos_garantia').insert({
-      garantia_id: garantia.id,
-      tipo: data.tipo,
-      caminho_arquivo: caminhoArquivo,
-      storage_path: storagePath,
-      descricao: data.descricao || null,
-      usuario_id: usuarioId,
-    });
-
-    if (error) raise(error, 'Erro ao salvar foto');
+    if (error) {
+      if (uploadedStoragePath) await supabase.storage.from(SUPABASE_STORAGE_BUCKET).remove([uploadedStoragePath]);
+      raise(error, 'Erro ao salvar foto');
+    }
+    persistedRow = inserted;
   }
 
   if (oldStoragePath && oldStoragePath !== storagePath) {
     await supabase.storage.from(SUPABASE_STORAGE_BUCKET).remove([oldStoragePath]);
   }
 
-  await insertHistorico(
-    garantia.id,
-    usuarioId,
-    `Vinculada foto de vistoria [${String(data.tipo).toUpperCase()}] com descrição técnica.`
-  );
+  const persistedPhoto = persistedRow ? mapFoto({
+    ...persistedRow,
+    garantias: { codigo_garantia: data.garantiaId },
+    usuarios: persistedRow.usuarios || { nome: data.usuarioResponsavel || 'Sistema' },
+  }) : null;
 
-  const refreshed = await buscarEstadoCompleto(data.usuarioId ? String(data.usuarioId) : null);
-  return refreshed.fotos.find((foto) => foto.garantiaId === data.garantiaId && foto.tipo === data.tipo) || null;
+  try {
+    await insertHistorico(
+      garantia.id,
+      usuarioId,
+      existing && !uploadedStoragePath
+        ? `Atualizada a descrição da foto de vistoria [${String(data.tipo).toUpperCase()}].`
+        : `Vinculada foto de vistoria [${String(data.tipo).toUpperCase()}] com descrição técnica.`
+    );
+  } catch (historyError) {
+    console.error('Foto persistida, mas o histórico fotográfico não pôde ser registrado:', historyError);
+    throw Object.assign(
+      new Error('A fotografia foi salva, mas o registro no histórico não pôde ser confirmado. A galeria será atualizada sem reenviar o arquivo.'),
+      { persistedPhoto },
+    );
+  }
+
+  return persistedPhoto;
 }
 
 export async function excluirFoto(id: string | number) {
